@@ -1,0 +1,6 @@
+{
+  "name": "จอม - JomCode AI",
+  "description": "จอม: ผู้ช่วยอัจฉริยะด้านการเขียนโค้ดและแก้ปัญหา พัฒนาด้วยระบบ J-1.0 AI",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

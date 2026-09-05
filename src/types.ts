@@ -1,0 +1,139 @@
+export type Role = "user" | "assistant" | "system";
+
+export interface CodeSnippet {
+  language: string;
+  code: string;
+  filename?: string;
+}
+
+export interface FileAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  extension: string;
+  content?: string;
+  dataUrl?: string;
+  isImage?: boolean;
+  isText?: boolean;
+  isLoading?: boolean;
+}
+
+export interface SearchSource {
+  title: string;
+  url: string;
+  snippet?: string;
+}
+
+export interface Message {
+  id: string;
+  role: Role;
+  content: string;
+  timestamp: number;
+  model?: string;
+  isStreaming?: boolean;
+  attachments?: FileAttachment[];
+  codeSnippets?: CodeSnippet[];
+  searchSources?: SearchSource[];
+  executionTimeMs?: number;
+  tokensEstimate?: number;
+  error?: string;
+}
+
+export interface KnowledgeItem {
+  id: string;
+  title: string;
+  content: string;
+  category: "snippet" | "documentation" | "preference" | "context";
+  createdAt: number;
+}
+
+export interface DiffLine {
+  type: "add" | "delete" | "normal";
+  oldLineNumber?: number;
+  newLineNumber?: number;
+  content: string;
+}
+
+export interface ExecutionResult {
+  success: boolean;
+  output: string;
+  error?: string;
+  executionTimeMs?: string;
+  returnValue?: string;
+  language?: string;
+}
+
+export type ZenThemeId = 
+  | "geometric-balance" // Geometric Balance (Default) - Crisp Slate & High-Contrast Minimal
+  | "zen-dark"          // Charcoal Ink & Slate
+  | "zen-washi"         // Japanese Sand Paper & Warm Ink
+  | "zen-monokai"       // Monokai Pro Minimal
+  | "zen-bamboo"        // Deep Forest Bamboo Green
+  | "zen-matrix";       // Minimalist Obsidian Neon
+
+export interface ZenThemeConfig {
+  id: ZenThemeId;
+  name: string;
+  nameTh: string;
+  desc: string;
+  bg: string;
+  cardBg: string;
+  cardBorder: string;
+  textColor: string;
+  textMuted: string;
+  accent: string;
+  accentHover: string;
+  accentLight: string;
+  codeBg: string;
+  inputBg: string;
+  headerBg: string;
+  isDark: boolean;
+}
+
+export interface PromptPreset {
+  id: string;
+  title: string;
+  titleTh: string;
+  iconName: string;
+  prompt: string;
+  category: "code" | "debug" | "refactor" | "explain" | "architecture" | "zen" | "generate";
+  shortcut?: string;
+}
+
+export interface JomModel {
+  id: string;
+  name: string;
+  pillLabel: string;
+  engine: string;
+  title: string;
+  subtitle: string;
+  badge?: string;
+  tagline: string;
+  speed: string;
+}
+
+export interface SystemPersona {
+  id: string;
+  name: string;
+  nameTh: string;
+  tagline: string;
+  icon: string;
+  instruction: string;
+  suggestedTemperature: number;
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: Message[];
+  personaId: string;
+  model?: string;
+  customSystemPrompt?: string;
+  temperature: number;
+  pinned?: boolean;
+  scratchpadCode?: string;
+  scratchpadLang?: string;
+}
