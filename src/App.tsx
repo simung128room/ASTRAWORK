@@ -9,7 +9,6 @@ import { ClaudeQuestionSheet } from "./components/ClaudeQuestionSheet";
 import { SettingsModal } from "./components/SettingsModal";
 import { zenAudio } from "./utils/zenAudio";
 import { ArrowDown, Menu, Brain } from "lucide-react";
-import { JomcodeLogo } from "./components/JomcodeLogo";
 import { DynamicGreeting } from "./components/DynamicGreeting";
 import { KnowledgeModal } from "./components/KnowledgeModal";
 import { KnowledgeItem } from "./types";
@@ -26,7 +25,7 @@ const DEFAULT_SESSION: ChatSession = {
   updatedAt: Date.now(),
   messages: [],
   personaId: "zen-coder",
-  model: "JOM-AGENT",
+  model: "Z one",
   temperature: 0.7,
   scratchpadCode: `// กระดานทดลองโค้ด - ทดสอบโค้ดของคุณที่นี่\nfunction add(a: number, b: number): number {\n  return a + b;\n}\n\nconsole.log(add(10, 25));`,
   scratchpadLang: "typescript",
@@ -42,7 +41,7 @@ export default function App() {
     return "geometric-balance";
   });
 
-  // Sessions State (Default to J-1.0 Unified Model)
+  // Sessions State (Default to Z one Autonomous Intelligence)
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -52,7 +51,7 @@ export default function App() {
           if (Array.isArray(parsed) && parsed.length > 0) {
             return parsed.map((s: ChatSession) => ({
               ...s,
-              model: s.model?.includes("JOM-AGENT") ? s.model : "JOM-AGENT",
+              model: s.model?.includes("Z") || s.model?.includes("z") || s.model?.includes("JOM") ? "Z one" : (s.model || "Z one"),
             }));
           }
         }

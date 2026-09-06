@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { ChatSession, SystemPersona, ZenThemeConfig, ZenThemeId } from "../types";
 import { zenAudio } from "../utils/zenAudio";
-import { JomcodeLogo } from "./JomcodeLogo";
+import { ZeroworkLogo } from "./ZeroworkLogo";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -107,38 +107,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        {/* Top Header: Jomcode Pixel Logo + Close Button */}
-        <div className="h-16 flex items-center justify-between px-5 pt-safe">
+        {/* Top Header: ZEROWORK Logo + Close Button */}
+        <div className="h-18 px-5 pt-safe flex items-center justify-between border-b border-zinc-900/50">
           <div 
             onClick={() => {
               onNewSession();
               if (window.innerWidth < 1024) onClose();
             }} 
-            className="flex items-center cursor-pointer hover:opacity-90 transition-opacity py-1"
-            title="JOMCODE"
+            className="flex items-center cursor-pointer hover:opacity-85 transition-opacity py-1 flex-1 min-w-0 pr-2"
+            title="ZEROWORK"
           >
-            <JomcodeLogo height={28} />
+            <ZeroworkLogo height={38} className="max-w-[190px]" />
           </div>
 
           {/* Close Sidebar button */}
           <button
             onClick={onClose}
             title="ปิดแถบข้าง"
-            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-lg transition-colors cursor-pointer"
+            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800/60 rounded-lg transition-colors cursor-pointer shrink-0"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4.5 h-4.5" />
           </button>
         </div>
 
         {/* New Chat Primary Button (White Rounded Capsule Button) */}
-        <div className="px-5 pt-1 pb-4">
+        <div className="px-5 pt-4 pb-3">
           <button
             onClick={() => {
               zenAudio.playSoftClick();
               onNewSession();
               if (window.innerWidth < 1024) onClose();
             }}
-            className="font-inter w-full h-12 bg-white hover:bg-zinc-200 active:scale-[0.98] text-black text-[15px] font-medium rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm"
+            className="font-inter w-full h-11 bg-white hover:bg-zinc-200 active:scale-[0.98] text-black text-[14px] font-medium rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-xs"
           >
             <span>แชทใหม่</span>
           </button>

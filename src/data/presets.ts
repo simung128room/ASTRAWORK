@@ -1,18 +1,20 @@
 import { JomModel, PromptPreset, SystemPersona, ZenThemeConfig, ZenThemeId } from "../types";
 
-export const JOM_MODELS: JomModel[] = [
+export const Z_MODELS: JomModel[] = [
   {
-    id: "JOM-AGENT",
-    name: "JOM-AGENT (Omni Autonomous Super-Agent)",
-    pillLabel: "JOM-AGENT",
-    engine: "Omni Architecture (Flash + Pro + Web Search + Deep Reasoning + Vision)",
-    title: "JOM-AGENT Omni Super-Agent",
-    subtitle: "รวมทุกขุมพลังในตัวเดียว: ทำได้ทุกอย่าง ทั้งเขียนโค้ด ค้นหาเว็บสด คิดเชิงลึก ไม่วนกฎ ให้คำตอบทันที",
-    badge: "Omni Agent",
-    tagline: "สุดยอด AI Agent ตัวเดียวครบวงจร ทำงานอัตโนมัติเต็มระบบ ไม่ติดกฎเกณฑ์จำเจ ให้โค้ดและคำตอบทันที",
-    speed: "ทำได้ทุกอย่าง (Omni All-in-One)",
+    id: "Z one",
+    name: "Z-One (ZEROWORK Z-One Omni Autonomous Intelligence)",
+    pillLabel: "Z one",
+    engine: "Z-One Cognitive Engine (Gemini 3.6 Flash + 3.1 Pro Core + Deep Reasoning + Live Grounding)",
+    title: "ZEROWORK Z-One",
+    subtitle: "สถาปัตยกรรมรุ่นอัปเกรดสูงสุด Z one: เขียนโค้ดระดับ Production คิดเชิงลึก ตรวจสอบความถูกต้องอัตโนมัติ แม่นยำ ไม่วนกฎ",
+    badge: "Z-One Core",
+    tagline: "สุดยอด AI Super-Agent รุ่น Z one ทรงพลัง ฉลาดล้ำ แก้ปัญหาซับซ้อนและเขียนโปรแกรมตัวเต็มได้ทันที",
+    speed: "สูงสุด (Ultra-High Speed & Deep Reasoning)",
   },
 ];
+
+export const JOM_MODELS = Z_MODELS;
 
 export const ZEN_THEMES: Record<ZenThemeId, ZenThemeConfig> = {
   "geometric-balance": {

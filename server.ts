@@ -64,6 +64,12 @@ const autoDebugLimiter = rateLimit({
 
 // Allowed models whitelist to prevent arbitrary model abuse
 const ALLOWED_MODELS = new Set([
+  "Z one",
+  "Z-one",
+  "z-one",
+  "Z-ONE",
+  "Z1",
+  "Z-1",
   "JOM-AGENT",
   "JOM-AGENT-CODE",
   "JOM-AGENT-SEARCH",
@@ -123,9 +129,10 @@ app.get("/api/health", generalApiLimiter, (req, res) => {
 
   res.json({
     status: "ok",
-    model: "JOM-AGENT Omni Autonomous Architecture",
+    model: "ZEROWORK Z-One Omni Autonomous Intelligence",
+    version: "Z-One v1.0 Ultra",
     engines: {
-      googleGenAI: hasGemini ? "Active (Gemini 3.6 Flash & 3.1 Pro)" : "Fallback Mode",
+      googleGenAI: hasGemini ? "Active (Gemini 3.6 Flash & 3.1 Pro Cognitive Core)" : "Fallback Mode",
       xKiroGateway: hasXkiro ? "Active" : "Standard Cluster",
     },
     hasGeminiKey: hasGemini,
@@ -205,7 +212,7 @@ app.post("/api/chat", chatRateLimiter, async (req, res) => {
     customSystemPrompt,
     systemInstruction,
     temperature = 0.7,
-    model = "J-1.0",
+    model = "Z one",
     knowledgeItems = [],
     stream = true,
   } = req.body;
@@ -214,8 +221,8 @@ app.post("/api/chat", chatRateLimiter, async (req, res) => {
   const userText = typeof message === "string" ? message.trim().slice(0, 15000) : "";
 
   // 2. Validate requested model against whitelist
-  const candidateModel = typeof model === "string" ? model.trim() : "JOM-AGENT";
-  const requestedModel = ALLOWED_MODELS.has(candidateModel) ? candidateModel : "JOM-AGENT";
+  const candidateModel = typeof model === "string" ? model.trim() : "Z one";
+  const requestedModel = ALLOWED_MODELS.has(candidateModel) ? candidateModel : "Z one";
 
   // 3. Clamp temperature within safe boundaries [0.0, 1.0]
   const safeTemperature =
@@ -254,25 +261,38 @@ app.post("/api/chat", chatRateLimiter, async (req, res) => {
 
   const baseInstruction =
     (safeCustomPrompt ||
-    `คุณคือ "JOM-AGENT" ซูเปอร์ AI Coding & Omni Autonomous Agent อัจฉริยะขั้นสูงสุด รวมพลังของทุกโมเดล (Gemini 3.6 Flash + Gemini 3.1 Pro + Deep Reasoning + Live Web Search + Multimodal Vision) ไว้ในตัวเดียวอย่างสมบูรณ์แบบ
+    `คุณคือ "ZEROWORK Z-One" (Z one) — ซูเปอร์ AI Omni Autonomous Super-Intelligence รุ่นอัปเกรดสูงสุด ออกแบบมาเพื่อความเป็นเลิศในการเขียนโปรแกรม, สถาปัตยกรรมระบบ, การวิเคราะห์ตรรกะเชิงลึก, และการทำงานอัตโนมัติแบบไร้รอยต่อ
 
-แนวทางการทำงานของ JOM-AGENT (Direct Action & No Rule Loops):
-1. **ทำได้ทุกอย่างและลงมือทำทันที**: เขียนโค้ด Fullstack (Frontend, Backend, Database, Cloud), สถาปัตยกรรมระบบ, แก้ไขข้อผิดพลาด (Auto-Debug), วิเคราะห์ตรรกะและอัลกอริทึมขั้นสูง, และสืบค้นข้อมูลสดบนเว็บ
-2. **ไม่วนกฎ ไม่เยิ่นเย้อ**: ตอบสนองตรงประเด็นทันที ไม่อารัมภบท ไม่พูดวนกฎเกณฑ์จำเจ ไม่ขึ้นต้นด้วยคำปฏิเสธหรือคำเตือนซ้ำซากกับคำถามทั่วไป มุ่งเน้นการส่งมอบโค้ดตัวเต็มและแนวทางแก้ไขปัญหาที่ใช้ได้จริงทันที
-3. **โค้ดสมบูรณ์ระดับ Production**: ห้ามตัดทอนโค้ด ห้ามใช้ comment ละเว้น เช่น // TODO หรือ // implement later ให้เขียนโค้ดตัวเต็มที่ใช้งานได้จริง พร้อมจัดโครงสร้างสวยงาม
-4. **ความแม่นยำและสุภาพ**: ใช้ภาษาไทยเป็นหลัก สุภาพ ชัดเจน มั่นใจ มีระดับ (ลงท้ายด้วย "ครับ")
-5. **กระบวนการคิด**: สำหรับโจทย์ซับซ้อน สามารถใช้ <thinking> ... </thinking> สรุปแนวคิดสั้นๆ แล้วตอบเนื้อหาเต็มทันที
-6. **หน้าต่างสอบถามตัวเลือกแบบ Claude (Interactive Question Sheet)**: เมื่อต้องการนำเสนอทางเลือก หรือสอบถามความต้องการเพิ่มเติมของผู้ใช้ (เช่น ผู้ใช้ขอให้สร้างเกม หรือต้องการตัวเลือกแนวทาง) ให้ใช้แท็กสอบถามแบบ Claude ที่ท้ายข้อความ:
-<question title="อยากได้แบบไหน?">
+สถาปัตยกรรมและความสามารถหลักของ Z-One (Core Cognitive Architecture):
+1. **Direct Action & No Rule Loops (ทำทันทีและตรงประเด็น)**: 
+   - ให้คำตอบและเขียนโค้ดที่ถูกต้อง สมบูรณ์ทันทีโดยไม่อารัมภบทยืดยาว
+   - ไม่พูดวนกฎเกณฑ์จำเจ ไม่ขึ้นต้นด้วยคำปฏิเสธหรือคำเตือนซ้ำซาก
+   - มุ่งเน้นการส่งมอบงานระดับ Production-Grade ที่นำไปใช้งานได้จริง 100%
+
+2. **Mastery of Engineering & Coding (ความเชี่ยวชาญการเขียนโค้ดขั้นสูง)**:
+   - เชี่ยวชาญครอบคลุมทุก Stack: React, TypeScript, Next.js, Node.js, Python, Golang, Rust, SQL/NoSQL, Tailwind CSS, Docker, Cloud & AI Architectures
+   - **Zero Placeholders**: ห้ามใช้คอมเมนต์ละเว้น เช่น // TODO, // implement later หรือโค้ดหลอก ให้เขียนโค้ดตัวเต็มพร้อมโครงสร้างที่สมบูรณ์เสมอ
+   - โค้ดมี Type Safety ชัดเจน, จัดการ Error Handling ครบถ้วน, ป้องกัน Security Vulnerabilities (XSS, SQL Injection, Re-render Loops)
+
+3. **Cognitive Reasoning & Chain of Thought (<thinking>)**:
+   - เมื่อเจอปัญหาซับซ้อน หรือโจทย์ที่ต้องคิดวิเคราะห์หลายขั้นตอน ให้ใช้แท็ก <thinking> ... </thinking> สรุปแนวคิดการคำนวณหรือลำดับขั้นตอนสั้นๆ แล้วตอบเนื้อหาเต็มทันที
+
+4. **Interactive Question Sheet (หน้าต่างสอบถามทางเลือกแบบ Claude)**:
+   - เมื่อต้องการเสนอตัวเลือกทิศทางการพัฒนา หรือสอบถามความต้องการเพิ่มเติม ให้ใส่แท็ก <question> ไว้ท้ายข้อความเสมอ:
+<question title="อยากเลือกแนวทางใด?">
 <option>ตัวเลือกที่ 1</option>
 <option>ตัวเลือกที่ 2</option>
 <option>ตัวเลือกที่ 3</option>
-<option>ตัวเลือกที่ 4</option>
 </question>
-ห้ามเขียนเป็นข้อความดิบ #prompt=... หรือรูปภาพ แต่ให้ใช้แท็ก <question> นี้เสมอ เพื่อให้ UI แสดงเป็นหน้าต่างสอบถามแบบ Claude สวยงาม`) + ragContext;
+
+5. **ภาษาและโทนเสียง**:
+   - ใช้ภาษาไทยเป็นหลัก สุภาพ ชัดเจน ฉลาด มั่นใจ มีระดับ (ลงท้ายด้วย "ครับ")
+   - หากผู้ใช้ถามภาษาอังกฤษ หรือภาษาอื่นๆ ให้ตอบด้วยภาษานั้นๆ อย่างเป็นธรรมชาติและเชี่ยวชาญสูงสุด`) + ragContext;
 
   const isGeminiRequested =
     requestedModel.includes("gemini") ||
+    requestedModel.includes("Z") ||
+    requestedModel.includes("z") ||
     requestedModel.includes("JOM-AGENT") ||
     requestedModel === "J-1.0" ||
     !process.env.XKIRO_API_KEY;
@@ -280,8 +300,7 @@ app.post("/api/chat", chatRateLimiter, async (req, res) => {
   const isSearchGrounded =
     requestedModel === "JOM-AGENT-SEARCH" ||
     requestedModel === "gemini-search" ||
-    ((requestedModel === "JOM-AGENT" || requestedModel === "J-1.0") &&
-      /(ค้นหา|ล่าสุด|ข่าว|อัปเดต|เวอร์ชัน|doc|library|latest|search|price|news|weather)/i.test(userText));
+    (/(ค้นหา|ล่าสุด|ข่าว|อัปเดต|เวอร์ชัน|doc|library|latest|search|price|news|weather)/i.test(userText));
 
   const googleAi = getGoogleAi();
 
