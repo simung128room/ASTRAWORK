@@ -304,15 +304,33 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                         </button>
                       );
                     }
+                    // Validate href against javascript:, data:, and malicious protocol handlers
+                    const isSafeLink = typeof href === "string" && /^(https?:\/\/|mailto:|\/|#)/i.test(href);
+                    if (!isSafeLink) {
+                      return <span className="text-zinc-400 font-mono text-sm">{children}</span>;
+                    }
                     return (
                       <a
                         href={href}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         className="text-purple-400 hover:underline font-medium"
                       >
                         {children}
                       </a>
+                    );
+                  },
+                  img({ src, alt }: any) {
+                    const isSafeImg = typeof src === "string" && /^(https?:\/\/|data:image\/(png|jpeg|jpg|webp|gif);base64,)/i.test(src);
+                    if (!isSafeImg) return null;
+                    return (
+                      <img
+                        src={src}
+                        alt={alt || "Image"}
+                        loading="lazy"
+                        className="rounded-xl max-w-full my-2 border border-zinc-800"
+                        referrerPolicy="no-referrer"
+                      />
                     );
                   },
                   h1({ children }) {

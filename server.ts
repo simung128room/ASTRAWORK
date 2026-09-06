@@ -14,60 +14,156 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// Trust reverse proxy (Cloud Run / Nginx) to correctly identify user IPs behind proxies
-app.set("trust proxy", 1);
+// Trust reverse proxy (Cloud Run / Nginx) safely
+app.set("trust proxy", process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY : 1);
 
-// Security Headers with Helmet
+// Security Headers with Helmet and Content Security Policy
 app.use(
   helmet({
-    frameguard: false, // Must be disabled so AI Studio iframe preview functions normally
-    contentSecurityPolicy: false, // Vite development manages hot resources dynamically
+    frameguard: false, // Allows embedding by Google AI Studio preview
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          "blob:",
+          "https://cdn.tailwindcss.com",
+        ],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: [
+          "'self'",
+          "https://api.xkiro.com",
+          "https://generativelanguage.googleapis.com",
+          "https://*.run.app",
+          "https://*.ai.studio",
+          "https://*.google.com",
+        ],
+        workerSrc: ["'self'", "blob:"],
+        frameSrc: ["'self'", "blob:", "data:"],
+        frameAncestors: [
+          "'self'",
+          "https://*.ai.studio",
+          "https://ai.studio",
+          "https://*.google.com",
+          "https://*.google.internal",
+        ],
+      },
+    },
     crossOriginEmbedderPolicy: false,
-    crossOriginOpenerPolicy: false, // Must be disabled for iframe embedded preview compatibility
+    crossOriginOpenerPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
   })
 );
 
-// CORS configuration supporting preview environments, Cloud Run regions, and local development
+// Whitelist configuration for CORS
+const extraAllowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const ALLOWED_ORIGIN_PATTERNS = [
+  /^https?:\/\/localhost(:\d+)?$/,
+  /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
+  /^https:\/\/[a-zA-Z0-9_.-]+\.run\.app$/,
+  /^https:\/\/(?:[a-zA-Z0-9-]+\.)?google\.internal$/,
+  /^https:\/\/(?:[a-zA-Z0-9-]+\.)?ai\.studio$/,
+  /^https:\/\/(?:[a-zA-Z0-9-]+\.)?aistudio\.google\.com$/,
+  /^https:\/\/(?:[a-zA-Z0-9-]+\.)?google\.com$/,
+];
+
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, same-origin, local tools)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (extraAllowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      const isAllowed = ALLOWED_ORIGIN_PATTERNS.some((pattern) => pattern.test(origin));
+      if (isAllowed) {
+        return callback(null, true);
+      }
+
+      // Reject non-whitelisted origin safely without throwing unhandled exceptions
+      return callback(null, false);
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-API-Key"],
+    maxAge: 86400,
   })
 );
 
 // Limit JSON body size to prevent memory exhaustion attacks
 app.use(express.json({ limit: "10mb" }));
 
-// Rate Limiters to prevent cost abuse, DoS, and scraping
+// Rate Limiters to prevent cost abuse, DoS, and automated scraping
 const generalApiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 60,
-  standardHeaders: true,
+  standardHeaders: "draft-7",
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false, forwardedHeader: false },
   message: { error: "คำขอมากเกินไป กรุณารอสักครู่ (Too many requests, please slow down)" },
 });
 
 const chatRateLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 30, // max 30 prompts per minute per IP
-  standardHeaders: true,
+  max: 40, // max 40 prompts per minute per IP
+  standardHeaders: "draft-7",
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false, forwardedHeader: false },
   message: { error: "คำขอส่งข้อความถี่เกินไป กรุณารอ 1 นาที (Chat rate limit exceeded)" },
 });
 
 const autoDebugLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 20,
-  standardHeaders: true,
+  standardHeaders: "draft-7",
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false, forwardedHeader: false },
   message: { error: "คำขอ auto-debug ถี่เกินไป กรุณารอสักครู่ (Auto-debug rate limit exceeded)" },
 });
+
+// Sanitizes error messages by redacting all API keys, bearer tokens, and secrets
+function sanitizeErrorMessage(err: any): string {
+  if (!err) return "Unknown error";
+  const raw = typeof err === "string" ? err : err.message || JSON.stringify(err);
+  return raw
+    .replace(/AIza[0-9A-Za-z-_]{35}/g, "AIza***[REDACTED]")
+    .replace(/key=[a-zA-Z0-9_\-]+/gi, "key=[REDACTED]")
+    .replace(/bearer\s+[a-zA-Z0-9_.\-]+/gi, "Bearer [REDACTED]")
+    .replace(/sk-[a-zA-Z0-9]{20,}/g, "sk-***[REDACTED]")
+    .replace(/xkiro-[a-zA-Z0-9]{20,}/g, "xkiro-***[REDACTED]");
+}
+
+// Authentication & Anti-CSRF Shield Middleware
+function verifyApiAccess(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const configuredSecret = process.env.APP_SECRET_KEY || process.env.API_AUTH_TOKEN;
+  if (configuredSecret) {
+    const provided = req.headers["x-api-key"] || (req.headers["authorization"] ? req.headers["authorization"].replace(/^Bearer\s+/i, "") : null);
+    if (!provided || provided !== configuredSecret) {
+      return res.status(401).json({ error: "Unauthorized: Invalid or missing API key" });
+    }
+  }
+
+  // Block unauthorized cross-site requests
+  const fetchSite = req.headers["sec-fetch-site"];
+  if (fetchSite === "cross-site") {
+    const hasCustomHeader = Boolean(req.headers["x-requested-with"] || req.headers["authorization"] || req.headers["x-api-key"]);
+    if (!hasCustomHeader) {
+      return res.status(403).json({ error: "Forbidden: Cross-site request rejected" });
+    }
+  }
+
+  next();
+}
 
 // Model Whitelist to prevent unauthorized model injection
 const ALLOWED_MODELS = new Set([
@@ -132,7 +228,7 @@ app.get("/api/health", generalApiLimiter, (req, res) => {
 });
 
 // Autonomous Auto-Debugging Endpoint with strict input validation and rate limiting
-app.post("/api/auto-debug", autoDebugLimiter, async (req, res) => {
+app.post("/api/auto-debug", autoDebugLimiter, verifyApiAccess, async (req, res) => {
   const { code, error, language = "typescript" } = req.body;
   if (!code || typeof code !== "string") {
     return res.status(400).json({ error: "No code provided for auto-debugging" });
@@ -193,13 +289,13 @@ ${safeCode}
       explanation: "ดำเนินการตรวจสอบและปรับปรุงโครงสร้างเรียบร้อย",
     });
   } catch (e: any) {
-    console.error("Auto-debug processing error:", e);
+    console.error("Auto-debug processing error:", sanitizeErrorMessage(e));
     return res.status(500).json({ error: "เกิดข้อผิดพลาดในการวิเคราะห์โค้ด กรุณาลองใหม่อีกครั้ง" });
   }
 });
 
 // Primary Unified Chat API (/api/chat) with strict validation & rate limiting
-app.post("/api/chat", chatRateLimiter, async (req, res) => {
+app.post("/api/chat", chatRateLimiter, verifyApiAccess, async (req, res) => {
   const {
     message,
     attachments = [],
@@ -403,9 +499,10 @@ app.post("/api/chat", chatRateLimiter, async (req, res) => {
         return res.json({ text: response.text, model: targetGeminiModel });
       }
     } catch (geminiErr: any) {
-      console.error("GoogleGenAI execution error:", geminiErr);
+      console.error("GoogleGenAI execution error:", sanitizeErrorMessage(geminiErr));
       if (res.headersSent) {
         res.write(`data: ${JSON.stringify({ error: "เกิดข้อผิดพลาดในการสตรีมข้อมูล กรุณาลองใหม่อีกครั้ง" })}\n\n`);
+        res.write("data: [DONE]\n\n");
         return res.end();
       }
     }
@@ -418,6 +515,7 @@ app.post("/api/chat", chatRateLimiter, async (req, res) => {
       return res.status(500).json({ error: "ระบบ AI กำลังเตรียมความพร้อม กรุณาลองใหม่อีกครั้งในสักครู่" });
     } else {
       res.write(`data: ${JSON.stringify({ error: "ระบบ AI กำลังเตรียมความพร้อม กรุณาลองใหม่อีกครั้งในสักครู่" })}\n\n`);
+      res.write("data: [DONE]\n\n");
       return res.end();
     }
   }
@@ -504,11 +602,12 @@ app.post("/api/chat", chatRateLimiter, async (req, res) => {
       });
     }
   } catch (err: any) {
-    console.error("xKiro processing error:", err);
+    console.error("xKiro processing error:", sanitizeErrorMessage(err));
     if (!res.headersSent) {
       return res.status(500).json({ error: "เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง" });
     } else {
       res.write(`data: ${JSON.stringify({ error: "เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง" })}\n\n`);
+      res.write("data: [DONE]\n\n");
       return res.end();
     }
   }

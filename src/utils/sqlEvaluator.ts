@@ -47,15 +47,27 @@ function evaluateSingleCondition(row: Record<string, any>, conditionStr: string)
     return isNot ? !exists : exists;
   }
 
-  // Comparison operators (=, !=, <>, >, <, >=, <=, LIKE)
-  const compMatch = trimmed.match(/^([a-zA-Z0-9_]+)\s*(=|!=|<>|>=|<=|>|<|like)\s*(.+)$/i);
-  if (!compMatch) {
+  // Safe Token-Based Comparison operators (=, !=, <>, >=, <=, >, <, LIKE) - ReDoS immune
+  const ops = ["!=", "<>", ">=", "<=", "like", "=", ">", "<"];
+  let matchedOp = "";
+  let opIdx = -1;
+  const lowerTrimmed = trimmed.toLowerCase();
+
+  for (const op of ops) {
+    const idx = op === "like" ? lowerTrimmed.search(/\s+like\s+/) : lowerTrimmed.indexOf(op);
+    if (idx > 0) {
+      matchedOp = op;
+      opIdx = op === "like" ? idx + 1 : idx;
+      break;
+    }
+  }
+
+  if (opIdx === -1 || !matchedOp) {
     return true;
   }
 
-  const col = compMatch[1].replace(/[`"']/g, "");
-  const op = compMatch[2].toLowerCase();
-  const rawTarget = compMatch[3].trim();
+  const col = trimmed.substring(0, opIdx).trim().replace(/[`"']/g, "");
+  const rawTarget = trimmed.substring(opIdx + matchedOp.length).trim();
   const targetVal = parseSqlValue(rawTarget);
   const rowVal = row[col];
 
@@ -63,6 +75,7 @@ function evaluateSingleCondition(row: Record<string, any>, conditionStr: string)
     return false;
   }
 
+  const op = matchedOp.toLowerCase();
   if (op === "=") {
     if (typeof targetVal === "number" && typeof rowVal === "number") {
       return rowVal === targetVal;
@@ -80,13 +93,19 @@ function evaluateSingleCondition(row: Record<string, any>, conditionStr: string)
   if (op === ">=") return Number(rowVal) >= Number(targetVal);
   if (op === "<=") return Number(rowVal) <= Number(targetVal);
   if (op === "like") {
+    // Escape all regex specials and replace wildcard characters
     const patternStr = String(targetVal)
+      .slice(0, 200) // Bound pattern length
       .toLowerCase()
       .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-      .replace(/%/g, ".*")
+      .replace(/%/g, ".*?")
       .replace(/_/g, ".");
-    const rx = new RegExp(`^${patternStr}$`, "i");
-    return rx.test(String(rowVal));
+    try {
+      const rx = new RegExp(`^${patternStr}$`, "i");
+      return rx.test(String(rowVal));
+    } catch {
+      return false;
+    }
   }
 
   return true;
@@ -120,10 +139,18 @@ function parseSetAssignments(setClause: string): Record<string, any> {
 
 export function executeSqlInSandbox(sql: string): { output: string; success: boolean; error?: string } {
   try {
-    const rawStatements = sql
+    if (!sql || typeof sql !== "string") {
+      return { success: true, output: "ไม่มีคำสั่ง SQL ที่ต้องประมวลผล" };
+    }
+
+    // Guard against memory DoS via oversized input
+    const boundedSql = sql.slice(0, 50000);
+
+    const rawStatements = boundedSql
       .split(";")
       .map((s) => s.trim())
-      .filter((s) => s.length > 0 && !s.startsWith("--"));
+      .filter((s) => s.length > 0 && !s.startsWith("--"))
+      .slice(0, 100); // Limit to 100 statements per execution
 
     if (rawStatements.length === 0) {
       return {

@@ -59,6 +59,14 @@ export function executeJsInBrowserSandbox(code: string): Promise<ExecutionResult
           } catch (e) {}
         }
 
+        // 2. Freeze native prototypes to prevent Prototype Pollution exploits
+        try {
+          Object.freeze(Object.prototype);
+          Object.freeze(Array.prototype);
+          Object.freeze(Function.prototype);
+          Object.freeze(String.prototype);
+        } catch (e) {}
+
         self.onmessage = function(e) {
           const logs = [];
           const customConsole = {
@@ -69,8 +77,15 @@ export function executeJsInBrowserSandbox(code: string): Promise<ExecutionResult
           };
 
           try {
+            const rawCode = String(e.data || "");
+
+            // 3. Reject prototype manipulation and constructor-chaining sandbox bypasses
+            if (/(__proto__|constructor\s*\.\s*constructor|Function\s*\(|importScripts|\beval\s*\(|debugger)/i.test(rawCode)) {
+              throw new Error("Security Policy Violation: ตรวจพบโค้ดที่มีความเสี่ยงสูง (Prototype Pollution / Sandbox Escape Attempt)");
+            }
+
             // Strip TypeScript annotations and keywords safely
-            let cleanCode = e.data
+            let cleanCode = rawCode
               .replace(/interface\s+[A-Za-z0-9_]+\s*(\<[^\>]*\>)?\s*\{[\s\S]*?\}/g, "")
               .replace(/type\s+[A-Za-z0-9_]+\s*(\<[^\>]*\>)?\s*=[\s\S]*?;/g, "")
               .replace(/\bas\s+[A-Za-z0-9_<>[\]|&, ]+/g, "")

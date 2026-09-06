@@ -104,12 +104,31 @@ export default function App() {
       ? latestParsed?.questionData
       : null;
 
-  // Save to localStorage
+  // Save to localStorage with quota protection & session pruning to prevent storage DoS
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+      // Keep max 30 sessions and cap stored messages to prevent QuotaExceededError
+      const prunedSessions = sessions.slice(0, 30).map((s) => ({
+        ...s,
+        messages: s.messages.slice(-50), // Keep latest 50 messages per session
+      }));
+      const serialized = JSON.stringify(prunedSessions);
+
+      // If payload exceeds 3MB, prune heavy image base64 attachments from saved storage
+      if (serialized.length > 3 * 1024 * 1024) {
+        const leanSessions = prunedSessions.slice(0, 15).map((s) => ({
+          ...s,
+          messages: s.messages.slice(-25).map((m) => ({
+            ...m,
+            attachments: m.attachments?.map((a) => ({ ...a, dataUrl: undefined })),
+          })),
+        }));
+        localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(leanSessions));
+      } else {
+        localStorage.setItem(STORAGE_KEY_SESSIONS, serialized);
+      }
     } catch (e) {
-      console.error("Failed to save sessions", e);
+      console.warn("LocalStorage quota protected or storage restricted:", e);
     }
   }, [sessions]);
 

@@ -198,6 +198,27 @@ export function transpilePythonToJs(pythonCode: string): string {
 }
 
 export function executePythonInSandbox(pythonCode: string): Promise<ExecutionResult> {
+  // Pre-execution security screening for system and reflection abuse
+  const DANGEROUS_PYTHON_PATTERNS = [
+    /__import__/,
+    /\b(eval|exec|open)\s*\(/,
+    /\b(os|sys|subprocess|shutil|socket|pty|urllib|requests|pickle)\b/,
+    /\b__builtins__\b/,
+    /\b__subclasses__\b/,
+    /\b__class__\b/,
+  ];
+
+  for (const pattern of DANGEROUS_PYTHON_PATTERNS) {
+    if (pattern.test(pythonCode)) {
+      return Promise.resolve({
+        success: false,
+        output: "",
+        error: "Security Policy Violation: คำสั่งที่พยายามเข้าถึง OS, System Modules หรือ Dynamic Eval ถูกบล็อกใน Client-Side Sandbox",
+        executionTimeMs: "0.00",
+      });
+    }
+  }
+
   try {
     const jsCode = transpilePythonToJs(pythonCode);
     return executeJsInBrowserSandbox(jsCode);

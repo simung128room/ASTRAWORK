@@ -21,13 +21,26 @@ export const ArtifactPreviewModal: React.FC<ArtifactPreviewModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Build standalone preview document containing Tailwind CDN & script execution support
+  // Build standalone preview document containing Tailwind CDN, script execution support, and defensive sandbox guards
   const srcDoc = `
 <!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:;">
+  <script>
+    // Defensive sandbox shield: isolate parent window and neutralize blocking dialogs
+    try {
+      Object.defineProperty(window, 'parent', { get: () => null });
+      Object.defineProperty(window, 'top', { get: () => null });
+      Object.defineProperty(window, 'opener', { get: () => null });
+      window.alert = function(msg) { console.warn("[Sandbox Alert Blocked]:", msg); };
+      window.confirm = function() { return false; };
+      window.prompt = function() { return null; };
+      window.open = function() { return null; };
+    } catch (e) {}
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
@@ -117,7 +130,7 @@ export const ArtifactPreviewModal: React.FC<ArtifactPreviewModalProps> = ({
               srcDoc={srcDoc}
               title="Artifact Live Render"
               className="w-full h-full border-0"
-              sandbox="allow-scripts allow-modals"
+              sandbox="allow-scripts"
             />
           </div>
         </div>

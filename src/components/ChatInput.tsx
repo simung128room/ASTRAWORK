@@ -179,9 +179,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
     const MAX_TEXT_BYTES = 2 * 1024 * 1024; // 2MB
 
+    // Strict blacklist against executable binaries and script payloads
+    const DANGEROUS_EXTENSIONS = new Set([
+      "exe", "dll", "bat", "cmd", "vbs", "vbe", "msi", "scr", "com", "pif", "jar",
+      "apk", "app", "dmg", "iso", "bin", "elf", "so", "dylib", "reg", "ps1", "wsf"
+    ]);
+
+    const ALLOWED_IMAGE_MIMES = new Set([
+      "image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"
+    ]);
+
     filesToProcess.forEach((file) => {
-      const ext = file.name.split(".").pop() || "";
-      const isImage = file.type.startsWith("image/");
+      const rawExt = file.name.split(".").pop() || "";
+      const ext = rawExt.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+      if (DANGEROUS_EXTENSIONS.has(ext)) {
+        setFileErrorWarning(`ไฟล์นามสกุล ".${ext}" ไม่อนุญาตให้อัปโหลดเพื่อความปลอดภัยของระบบ`);
+        return;
+      }
+
+      const isImage = ALLOWED_IMAGE_MIMES.has(file.type.toLowerCase()) || (file.type.startsWith("image/") && ["png", "jpg", "jpeg", "webp", "gif"].includes(ext));
       const isText =
         file.type.startsWith("text/") ||
         file.type === "application/json" ||
@@ -189,7 +206,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           "txt", "md", "csv", "json", "js", "ts", "tsx", "jsx", "py", "html", "css",
           "scss", "sql", "rs", "go", "cpp", "c", "h", "java", "php", "sh", "bash",
           "yaml", "yml", "xml", "log", "env", "toml", "ini", "rb", "swift", "kt"
-        ].includes(ext.toLowerCase());
+        ].includes(ext);
 
       // Validate file size before reading into memory
       if (isImage && file.size > MAX_IMAGE_BYTES) {
@@ -206,19 +223,25 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       }
 
       const tempId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const safeName = file.name.replace(/[^\w\s.-]/g, "_").slice(0, 100);
 
       // Show skeleton loading state
-      setLoadingFiles((prev) => [...prev, { id: tempId, name: file.name }]);
+      setLoadingFiles((prev) => [...prev, { id: tempId, name: safeName }]);
 
       if (isImage) {
         const reader = new FileReader();
         reader.onload = (event) => {
           const dataUrl = event.target?.result as string;
+          if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
+            setFileErrorWarning(`ไฟล์รูปภาพ "${safeName}" รูปแบบไม่ถูกต้อง`);
+            setLoadingFiles((prev) => prev.filter((f) => f.id !== tempId));
+            return;
+          }
           setAttachments((prev) => [
             ...prev,
             {
               id: tempId,
-              name: file.name,
+              name: safeName,
               size: file.size,
               type: file.type,
               extension: ext,
@@ -230,23 +253,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           setLoadingFiles((prev) => prev.filter((f) => f.id !== tempId));
         };
         reader.onerror = () => {
-          setFileErrorWarning(`ไม่สามารถอ่านไฟล์รูปภาพ "${file.name}" ได้`);
+          setFileErrorWarning(`ไม่สามารถอ่านไฟล์รูปภาพ "${safeName}" ได้`);
           setLoadingFiles((prev) => prev.filter((f) => f.id !== tempId));
         };
         reader.readAsDataURL(file);
       } else if (isText) {
         const reader = new FileReader();
         reader.onload = (event) => {
-          const textContent = event.target?.result as string;
+          const textContent = (event.target?.result as string) || "";
           setAttachments((prev) => [
             ...prev,
             {
               id: tempId,
-              name: file.name,
+              name: safeName,
               size: file.size,
               type: file.type || "text/plain",
               extension: ext,
-              content: textContent,
+              content: textContent.slice(0, 100000),
               isImage: false,
               isText: true,
             },
@@ -254,7 +277,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           setLoadingFiles((prev) => prev.filter((f) => f.id !== tempId));
         };
         reader.onerror = () => {
-          setFileErrorWarning(`ไม่สามารถอ่านไฟล์ข้อความ "${file.name}" ได้`);
+          setFileErrorWarning(`ไม่สามารถอ่านไฟล์ข้อความ "${safeName}" ได้`);
           setLoadingFiles((prev) => prev.filter((f) => f.id !== tempId));
         };
         reader.readAsText(file);
@@ -264,7 +287,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             ...prev,
             {
               id: tempId,
-              name: file.name,
+              name: safeName,
               size: file.size,
               type: file.type || "application/octet-stream",
               extension: ext,
