@@ -136,7 +136,7 @@ export const extractThinkingMainAndQuestion = (content: string): ParsedMessageDa
 
   let questionData: QuestionData | null = null;
 
-  // 2. Extract <question title="..."> <option>...</option> </question>
+  // 2. Extract explicit <question title="..."> <option>...</option> </question>
   const questionTagRegex = /<question(?:\s+title=["']([^"']*)["'])?\s*>([\s\S]*?)<\/question>/i;
   const qMatch = questionTagRegex.exec(main);
   if (qMatch) {
@@ -152,63 +152,6 @@ export const extractThinkingMainAndQuestion = (content: string): ParsedMessageDa
     if (options.length > 0) {
       questionData = { title, options };
       main = main.replace(questionTagRegex, "").trim();
-    }
-  }
-
-  // 3. Extract #prompt= patterns (e.g. ทางเลือกต่อยอดการทำงาน: #prompt=...)
-  if (!questionData && main.includes("#prompt=")) {
-    const lines = main.split("\n");
-    const options: string[] = [];
-    let detectedTitle = "ทางเลือกต่อยอดการทำงาน";
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (
-        (trimmed.includes("ทางเลือก") || trimmed.includes("อยากได้") || trimmed.includes("เลือก")) &&
-        !trimmed.includes("#prompt=")
-      ) {
-        const cleanT = trimmed.replace(/^[#*\s:]+/, "").replace(/[:\s]+$/, "").trim();
-        if (cleanT) detectedTitle = cleanT;
-      }
-      if (trimmed.includes("#prompt=")) {
-        const promptText = trimmed
-          .replace(/^.*#prompt=/, "")
-          .replace(/\]\(#prompt=[^\)]*\)/, "")
-          .replace(/[\[\]\(\)]/g, "")
-          .trim();
-        if (promptText) {
-          options.push(promptText);
-        }
-      }
-    }
-
-    if (options.length > 0) {
-      questionData = {
-        title: detectedTitle,
-        options,
-      };
-      main = main
-        .replace(/(?:^|\n)(?:###?\s*)?ทางเลือกต่อยอดการทำงาน:?[\s\S]*$/gi, "")
-        .replace(/(?:^|\n)\[?#prompt=[^\n\]]+\]?(?:\([^\)]*\))?/gi, "")
-        .trim();
-    }
-  }
-
-  // 4. Extract trailing question with numbered choices (e.g. 1. ... 2. ...)
-  if (!questionData) {
-    const listPattern = /(?:\n\n|\n)([^\n]+\?)\s*\n((?:\s*\d+[\.\)]\s+[^\n]+\n*){2,6})$/i;
-    const listMatch = listPattern.exec(main);
-    if (listMatch) {
-      const title = listMatch[1].replace(/^[#*\s]+/, "").trim();
-      const rawOptions = listMatch[2];
-      const optLines = rawOptions
-        .split("\n")
-        .map((l) => l.replace(/^\s*\d+[\.\)]\s+/, "").trim())
-        .filter(Boolean);
-      if (optLines.length >= 2) {
-        questionData = { title, options: optLines };
-        main = main.replace(listPattern, "").trim();
-      }
     }
   }
 
