@@ -40,14 +40,6 @@ export interface Message {
   error?: string;
 }
 
-export interface KnowledgeItem {
-  id: string;
-  title: string;
-  content: string;
-  category: "snippet" | "documentation" | "preference" | "context";
-  createdAt: number;
-}
-
 export interface DiffLine {
   type: "add" | "delete" | "normal";
   oldLineNumber?: number;

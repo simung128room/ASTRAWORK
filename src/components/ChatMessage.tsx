@@ -230,7 +230,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
   const toggleSpeech = () => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      alert("เบราว์เซอร์นี้ยังไม่รองรับระบบออกเสียง (TTS)");
+      console.warn("SpeechSynthesis API is not supported in this browser environment");
       return;
     }
 
@@ -238,15 +238,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
     } else {
-      window.speechSynthesis.cancel();
-      const textToSpeak = message.content.replace(/```[\s\S]*?```/g, " [โค้ด] ").slice(0, 1000);
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      utterance.lang = "th-TH";
-      utterance.rate = 1.0;
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-      window.speechSynthesis.speak(utterance);
-      setIsSpeaking(true);
+      try {
+        window.speechSynthesis.cancel();
+        const textToSpeak = message.content.replace(/```[\s\S]*?```/g, " [โค้ด] ").slice(0, 1000);
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = "th-TH";
+        utterance.rate = 1.0;
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+        window.speechSynthesis.speak(utterance);
+        setIsSpeaking(true);
+      } catch (e) {
+        console.warn("TTS error:", e);
+        setIsSpeaking(false);
+      }
     }
   };
 

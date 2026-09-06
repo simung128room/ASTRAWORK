@@ -8,15 +8,12 @@ import { ChatInput } from "./components/ChatInput";
 import { ClaudeQuestionSheet } from "./components/ClaudeQuestionSheet";
 import { SettingsModal } from "./components/SettingsModal";
 import { zenAudio } from "./utils/zenAudio";
-import { ArrowDown, Menu, Brain } from "lucide-react";
+import { ArrowDown, Menu } from "lucide-react";
 import { DynamicGreeting } from "./components/DynamicGreeting";
-import { KnowledgeModal } from "./components/KnowledgeModal";
-import { KnowledgeItem } from "./types";
 
 const STORAGE_KEY_SESSIONS = "opencode_zen_sessions_v2";
 const STORAGE_KEY_THEME = "opencode_zen_theme_v2";
 const STORAGE_KEY_ACTIVE_ID = "opencode_zen_active_id_v2";
-const STORAGE_KEY_KNOWLEDGE = "opencode_zen_knowledge_v1";
 
 const DEFAULT_SESSION: ChatSession = {
   id: "session-initial",
@@ -75,36 +72,16 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isScratchpadOpen, setIsScratchpadOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isKnowledgeOpen, setIsKnowledgeOpen] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [dismissedQuestionIds, setDismissedQuestionIds] = useState<Set<string>>(new Set());
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
-  // RAG Knowledge Items State
-  const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY_KNOWLEDGE);
-        if (saved) return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [
-      {
-        id: "k-1",
-        title: "มาตรฐานสถาปัตยกรรมโปรเจกต์ (Project Architecture)",
-        content: "ใช้ React 18, TypeScript, Tailwind CSS, GoogleGenAI SDK Server-Side, แยกไฟล์ Modular เสมอ",
-        category: "preference",
-        createdAt: Date.now(),
-      },
-    ];
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_KNOWLEDGE, JSON.stringify(knowledgeItems));
-    } catch (e) {}
-  }, [knowledgeItems]);
+  const showToast = (text: string, type: "success" | "error" = "success") => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollContainerRef = useRef<HTMLDivElement>(null);
@@ -275,7 +252,6 @@ export default function App() {
           model: activeSession.model || "JOM-AGENT",
           temperature: activeSession.temperature ?? 0.7,
           customSystemPrompt: activeSession.customSystemPrompt,
-          knowledgeItems: knowledgeItems,
         }),
         signal: controller.signal,
       });
@@ -540,7 +516,7 @@ export default function App() {
     zenAudio.playCopyChime();
   };
 
-  // Import sessions from JSON
+  // Import sessions from JSON with strict schema validation
   const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -548,19 +524,58 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const parsed = JSON.parse(event.target?.result as string);
-        if (parsed.sessions && Array.isArray(parsed.sessions)) {
-          setSessions(parsed.sessions);
-          if (parsed.sessions.length > 0) {
-            setActiveSessionId(parsed.sessions[0].id);
+        const raw = event.target?.result as string;
+        if (!raw || typeof raw !== "string") {
+          showToast("ไฟล์ว่างเปล่าหรืออ่านข้อมูลไม่สำเร็จ", "error");
+          return;
+        }
+
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.sessions) && parsed.sessions.length > 0) {
+          // Validate and sanitize each session structure
+          const validatedSessions: ChatSession[] = parsed.sessions
+            .filter((s: any) => s && typeof s.id === "string")
+            .map((s: any) => ({
+              id: String(s.id).slice(0, 100),
+              title: typeof s.title === "string" ? s.title.slice(0, 150) : "บทสนทนา",
+              messages: Array.isArray(s.messages)
+                ? s.messages
+                    .filter((m: any) => m && (m.role === "user" || m.role === "assistant"))
+                    .map((m: any) => ({
+                      id: String(m.id || `msg-${Date.now()}`),
+                      role: m.role,
+                      content: typeof m.content === "string" ? m.content : "",
+                      timestamp: typeof m.timestamp === "number" ? m.timestamp : Date.now(),
+                      model: typeof m.model === "string" ? m.model : undefined,
+                      attachments: Array.isArray(m.attachments) ? m.attachments : undefined,
+                    }))
+                : [],
+              updatedAt: typeof s.updatedAt === "number" ? s.updatedAt : Date.now(),
+              model: typeof s.model === "string" ? s.model : "Z one",
+              isPinned: Boolean(s.isPinned),
+              personaId: typeof s.personaId === "string" ? s.personaId : "zen-master",
+              temperature: typeof s.temperature === "number" ? s.temperature : 0.7,
+              customSystemPrompt: typeof s.customSystemPrompt === "string" ? s.customSystemPrompt : undefined,
+              scratchpadCode: typeof s.scratchpadCode === "string" ? s.scratchpadCode : undefined,
+              scratchpadLang: typeof s.scratchpadLang === "string" ? s.scratchpadLang : undefined,
+            }));
+
+          if (validatedSessions.length > 0) {
+            setSessions(validatedSessions);
+            setActiveSessionId(validatedSessions[0].id);
+            if (parsed.themeId && ZEN_THEMES[parsed.themeId as ZenThemeId]) {
+              setThemeId(parsed.themeId as ZenThemeId);
+            }
+            showToast(`นำเข้าประวัติสนทนา ${validatedSessions.length} รายการสำเร็จ!`, "success");
+            zenAudio.playCopyChime();
+          } else {
+            showToast("ไม่พบข้อมูลแชตที่ถูกต้องในไฟล์ JSON", "error");
           }
-          if (parsed.themeId && ZEN_THEMES[parsed.themeId as ZenThemeId]) {
-            setThemeId(parsed.themeId as ZenThemeId);
-          }
-          alert(`Successfully loaded ${parsed.sessions.length} chats!`);
+        } else {
+          showToast("รูปแบบไฟล์ JSON ไม่ถูกต้อง", "error");
         }
       } catch (err) {
-        alert("Failed to import JSON: Invalid format.");
+        showToast("เกิดข้อผิดพลาดในการแปลงไฟล์ JSON", "error");
       }
     };
     reader.readAsText(file);
@@ -610,8 +625,20 @@ export default function App() {
 
       {/* Main Column */}
       <main className="flex-1 flex flex-col min-w-0 h-[100dvh] relative overflow-hidden bg-[#000000] z-10">
-        {/* Top Header Controls: Sidebar & Knowledge Base */}
-        <div className="absolute top-3.5 left-3.5 right-3.5 z-30 flex items-center justify-between pointer-events-none">
+        {/* Floating Toast Notification */}
+        {toastMessage && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-2xl backdrop-blur-md transition-all animate-in fade-in slide-in-from-top-4 duration-200 bg-zinc-900/95 border border-zinc-700 text-zinc-100">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                toastMessage.type === "success" ? "bg-emerald-400" : "bg-red-400"
+              }`}
+            />
+            <span>{toastMessage.text}</span>
+          </div>
+        )}
+
+        {/* Top Header Controls: Sidebar */}
+        <div className="absolute top-3.5 left-3.5 z-30 flex items-center pointer-events-none">
           <button
             onClick={() => setIsSidebarOpen((prev) => !prev)}
             title="เปิด/ปิด เมนู"
@@ -619,17 +646,6 @@ export default function App() {
           >
             <Menu className="w-5 h-5" />
           </button>
-
-          <div className="flex items-center gap-2 pointer-events-auto">
-            <button
-              onClick={() => setIsKnowledgeOpen(true)}
-              title="จัดการข้อมูลบริบท RAG & ความรู้โปรเจกต์"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-300 text-xs font-medium transition-all cursor-pointer backdrop-blur-md active:scale-95"
-            >
-              <Brain className="w-4 h-4 text-purple-400" />
-              <span className="hidden sm:inline">RAG Memory ({knowledgeItems.length})</span>
-            </button>
-          </div>
         </div>
 
         {/* Content View: Hero / Active Chat */}
@@ -769,22 +785,6 @@ export default function App() {
         onExportJSON={handleExportJSON}
         onImportJSON={handleImportJSON}
         onResetAllData={handleResetAllData}
-      />
-
-      {/* RAG Knowledge Base Modal */}
-      <KnowledgeModal
-        isOpen={isKnowledgeOpen}
-        onClose={() => setIsKnowledgeOpen(false)}
-        items={knowledgeItems}
-        onAddItem={(newItem) => {
-          setKnowledgeItems((prev) => [
-            ...prev,
-            { ...newItem, id: `k-${Date.now()}`, createdAt: Date.now() },
-          ]);
-        }}
-        onDeleteItem={(id) => {
-          setKnowledgeItems((prev) => prev.filter((item) => item.id !== id));
-        }}
       />
     </div>
   );

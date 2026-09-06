@@ -155,13 +155,12 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
 
     try {
       if (cleanLang === "python" || cleanLang === "py") {
-        const res = executePythonInSandbox(currentCode);
-        const elapsed = (performance.now() - start).toFixed(2);
+        const res = await executePythonInSandbox(currentCode);
         setExecResult({
           success: res.success,
           output: res.output,
           error: res.error,
-          executionTimeMs: elapsed,
+          executionTimeMs: res.executionTimeMs || ((performance.now() - start).toFixed(2)),
           language: "Python",
         });
       } else if (cleanLang === "sql") {

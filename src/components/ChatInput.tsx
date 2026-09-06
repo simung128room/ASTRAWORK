@@ -9,7 +9,8 @@ import {
   Square, 
   X,
   UploadCloud,
-  Check
+  Check,
+  AlertTriangle
 } from "lucide-react";
 import { FileAttachment, ZenThemeConfig } from "../types";
 import { JOM_MODELS } from "../data/presets";
@@ -57,6 +58,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [isDeepThinking, setIsDeepThinking] = useState(false);
+  const [fileErrorWarning, setFileErrorWarning] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -153,15 +155,30 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  // Universal File Processor
+  // Universal File Processor with size & count safety limits
   const processFiles = (files: FileList | File[]) => {
     const fileArray = Array.from(files);
     if (fileArray.length === 0) return;
 
     zenAudio.playSoftClick();
+    setFileErrorWarning(null);
 
-    fileArray.forEach((file) => {
-      const tempId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    // Max 5 attachments total
+    const remainingSlots = 5 - attachments.length;
+    if (remainingSlots <= 0) {
+      setFileErrorWarning("แนบไฟล์ได้สูงสุด 5 ไฟล์ต่อหนึ่งข้อความ");
+      return;
+    }
+
+    const filesToProcess = fileArray.slice(0, remainingSlots);
+    if (fileArray.length > remainingSlots) {
+      setFileErrorWarning(`จำกัดแนบไฟล์สูงสุด 5 ไฟล์ (ข้าม ${fileArray.length - remainingSlots} ไฟล์ที่เกิน)`);
+    }
+
+    const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
+    const MAX_TEXT_BYTES = 2 * 1024 * 1024; // 2MB
+
+    filesToProcess.forEach((file) => {
       const ext = file.name.split(".").pop() || "";
       const isImage = file.type.startsWith("image/");
       const isText =
@@ -172,6 +189,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           "scss", "sql", "rs", "go", "cpp", "c", "h", "java", "php", "sh", "bash",
           "yaml", "yml", "xml", "log", "env", "toml", "ini", "rb", "swift", "kt"
         ].includes(ext.toLowerCase());
+
+      // Validate file size before reading into memory
+      if (isImage && file.size > MAX_IMAGE_BYTES) {
+        setFileErrorWarning(`รูปภาพ "${file.name}" มีขนาดเกิน 5 MB (${(file.size / (1024 * 1024)).toFixed(1)} MB) ไม่สามารถอัปโหลดได้`);
+        return;
+      }
+      if (isText && file.size > MAX_TEXT_BYTES) {
+        setFileErrorWarning(`ไฟล์ข้อความ "${file.name}" มีขนาดเกิน 2 MB (${(file.size / (1024 * 1024)).toFixed(1)} MB) ไม่สามารถอัปโหลดได้`);
+        return;
+      }
+      if (!isImage && !isText && file.size > MAX_IMAGE_BYTES) {
+        setFileErrorWarning(`ไฟล์ "${file.name}" มีขนาดเกิน 5 MB ไม่สามารถอัปโหลดได้`);
+        return;
+      }
+
+      const tempId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
       // Show skeleton loading state
       setLoadingFiles((prev) => [...prev, { id: tempId, name: file.name }]);
@@ -195,6 +228,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           ]);
           setLoadingFiles((prev) => prev.filter((f) => f.id !== tempId));
         };
+        reader.onerror = () => {
+          setFileErrorWarning(`ไม่สามารถอ่านไฟล์รูปภาพ "${file.name}" ได้`);
+          setLoadingFiles((prev) => prev.filter((f) => f.id !== tempId));
+        };
         reader.readAsDataURL(file);
       } else if (isText) {
         const reader = new FileReader();
@@ -213,6 +250,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               isText: true,
             },
           ]);
+          setLoadingFiles((prev) => prev.filter((f) => f.id !== tempId));
+        };
+        reader.onerror = () => {
+          setFileErrorWarning(`ไม่สามารถอ่านไฟล์ข้อความ "${file.name}" ได้`);
           setLoadingFiles((prev) => prev.filter((f) => f.id !== tempId));
         };
         reader.readAsText(file);
@@ -341,6 +382,31 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           </button>
         </motion.div>
       )}
+
+      {/* File Size / Count Safety Warning Banner */}
+      <AnimatePresence>
+        {fileErrorWarning && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="flex items-center justify-between gap-2 px-3 py-2 mb-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-thai shadow-sm"
+          >
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>{fileErrorWarning}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFileErrorWarning(null)}
+              className="p-1 hover:bg-amber-500/20 rounded-lg text-amber-400 transition-colors"
+              title="ปิดการแจ้งเตือน"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Attachments & Skeleton Loaders Row */}
       {(attachments.length > 0 || loadingFiles.length > 0) && (
