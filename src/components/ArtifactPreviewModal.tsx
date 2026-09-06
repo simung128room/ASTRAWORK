@@ -117,7 +117,7 @@ export const ArtifactPreviewModal: React.FC<ArtifactPreviewModalProps> = ({
               srcDoc={srcDoc}
               title="Artifact Live Render"
               className="w-full h-full border-0"
-              sandbox="allow-scripts allow-modals allow-same-origin"
+              sandbox="allow-scripts allow-modals"
             />
           </div>
         </div>

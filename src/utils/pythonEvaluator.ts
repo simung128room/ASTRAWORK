@@ -37,8 +37,18 @@ export function executePythonInSandbox(code: string): { output: string; success:
       logs.push(args.map(a => (typeof a === "object" ? JSON.stringify(a) : String(a))).join(" "));
     };
 
-    const runFunc = new Function("__print", `"use strict"; ${jsCode}`);
-    runFunc(printFn);
+    const runFunc = new Function(
+      "__print",
+      "window",
+      "document",
+      "localStorage",
+      "sessionStorage",
+      "indexedDB",
+      "fetch",
+      "XMLHttpRequest",
+      `"use strict"; ${jsCode}`
+    );
+    runFunc(printFn, null, null, null, null, null, null, null);
 
     return {
       success: true,

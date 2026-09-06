@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { Message, ZenThemeConfig } from "../types";
 import { CodeBlock } from "./CodeBlock";
+import { ClaudeQuestionSheet, QuestionData } from "./ClaudeQuestionSheet";
 import { 
   Copy, 
   Check, 
@@ -57,7 +58,7 @@ const ThinkingTimer: React.FC<{ startTimestamp?: number }> = ({ startTimestamp }
   );
 };
 
-// Claude Style Thought Process Drawer Modal & Trigger
+// Lightweight Inline Thought Process Accordion (No Bottom Sheet / No Modal)
 const ThoughtProcessModal: React.FC<{ content: string; isStreaming?: boolean }> = ({ content, isStreaming }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -71,77 +72,56 @@ const ThoughtProcessModal: React.FC<{ content: string; isStreaming?: boolean }> 
   const latestStep = displaySteps[displaySteps.length - 1];
 
   return (
-    <>
+    <div className="mb-3">
       {/* Inline Thought Process Trigger */}
-      <div className="mb-3">
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className="group inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors select-none cursor-pointer py-1"
-        >
-          <span className="w-2 h-2 rounded-full bg-orange-500/90 group-hover:bg-orange-400 transition-colors shrink-0" />
-          <span className="font-thai truncate max-w-sm sm:max-w-md font-medium text-zinc-300">
-            {displaySteps.length > 1 ? latestStep : "Thought process"}
-          </span>
-          <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 transition-colors shrink-0" />
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="group inline-flex items-center gap-2 text-xs text-zinc-400 hover:text-zinc-200 transition-colors select-none cursor-pointer py-1 px-2.5 rounded-lg bg-zinc-800/40 hover:bg-zinc-800/70 border border-zinc-700/40"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-orange-500/90 group-hover:bg-orange-400 transition-colors shrink-0" />
+        <span className="font-thai truncate max-w-sm sm:max-w-md font-medium text-zinc-300">
+          {displaySteps.length > 1 ? latestStep : "Thought process"}
+        </span>
+        <ChevronRight className={`w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-300 transition-transform shrink-0 ${isOpen ? "rotate-90" : ""}`} />
+      </button>
 
-      {/* Bottom Sheet Modal */}
+      {/* Inline Expandable View (No Fullscreen / No Bottom Sheet Modal) */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/75 backdrop-blur-xs transition-opacity"
-            onClick={() => setIsOpen(false)}
-          />
-
-          {/* Bottom Sheet Content */}
-          <div className="relative z-10 w-full max-w-lg bg-zinc-900 border-t border-zinc-800 rounded-t-3xl p-5 shadow-2xl max-h-[80vh] flex flex-col animate-in slide-in-from-bottom duration-300">
-            {/* Header */}
-            <div className="flex items-center justify-between pb-3.5 border-b border-zinc-800/80 mb-4">
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-                aria-label="Close"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="text-base font-semibold text-zinc-100 font-sans">Summary</h3>
-              <div className="w-8" />
+        <div className="mt-2 p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-2 text-xs text-zinc-300 font-thai">
+          {displaySteps.map((step, idx) => (
+            <div key={idx} className="flex items-start gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-500/90 mt-1.5 shrink-0" />
+              <p className="leading-relaxed text-zinc-300">{step}</p>
             </div>
+          ))}
 
-            {/* Steps List */}
-            <div className="overflow-y-auto space-y-4 py-1 pr-1 custom-scrollbar">
-              {displaySteps.map((step, idx) => (
-                <div key={idx} className="flex items-start gap-3">
-                  <span className="w-2 h-2 rounded-full bg-orange-500/90 mt-2 shrink-0" />
-                  <p className="text-sm text-zinc-200 font-thai leading-relaxed">{step}</p>
-                </div>
-              ))}
-
-              {isStreaming && (
-                <div className="flex items-start gap-3">
-                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse mt-2 shrink-0" />
-                  <p className="text-sm text-zinc-400 font-thai italic">Thinking...</p>
-                </div>
-              )}
+          {isStreaming && (
+            <div className="flex items-start gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse mt-1.5 shrink-0" />
+              <p className="text-zinc-400 italic">Thinking...</p>
             </div>
-          </div>
+          )}
         </div>
       )}
-    </>
+    </div>
   );
 };
 
-// Helper to extract <thinking> tags
-const extractThinkingAndMain = (content: string) => {
-  let thinking = "";
-  let main = content;
+// Helper to extract <thinking> tags and question data (Claude style)
+export interface ParsedMessageData {
+  thinking: string;
+  main: string;
+  questionData: QuestionData | null;
+}
 
-  if (content.includes("<thinking>")) {
-    const parts = content.split("<thinking>");
+export const extractThinkingMainAndQuestion = (content: string): ParsedMessageData => {
+  let thinking = "";
+  let main = content || "";
+
+  // 1. Extract <thinking> tags
+  if (main.includes("<thinking>")) {
+    const parts = main.split("<thinking>");
     const afterThinking = parts[1] || "";
     if (afterThinking.includes("</thinking>")) {
       const thinkingParts = afterThinking.split("</thinking>");
@@ -154,7 +134,85 @@ const extractThinkingAndMain = (content: string) => {
     }
   }
 
-  return { thinking, main };
+  let questionData: QuestionData | null = null;
+
+  // 2. Extract <question title="..."> <option>...</option> </question>
+  const questionTagRegex = /<question(?:\s+title=["']([^"']*)["'])?\s*>([\s\S]*?)<\/question>/i;
+  const qMatch = questionTagRegex.exec(main);
+  if (qMatch) {
+    const title = qMatch[1]?.trim() || "อยากได้แบบไหน?";
+    const inner = qMatch[2];
+    const optionRegex = /<option>([\s\S]*?)<\/option>/gi;
+    const options: string[] = [];
+    let optMatch;
+    while ((optMatch = optionRegex.exec(inner)) !== null) {
+      const text = optMatch[1].trim();
+      if (text) options.push(text);
+    }
+    if (options.length > 0) {
+      questionData = { title, options };
+      main = main.replace(questionTagRegex, "").trim();
+    }
+  }
+
+  // 3. Extract #prompt= patterns (e.g. ทางเลือกต่อยอดการทำงาน: #prompt=...)
+  if (!questionData && main.includes("#prompt=")) {
+    const lines = main.split("\n");
+    const options: string[] = [];
+    let detectedTitle = "ทางเลือกต่อยอดการทำงาน";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (
+        (trimmed.includes("ทางเลือก") || trimmed.includes("อยากได้") || trimmed.includes("เลือก")) &&
+        !trimmed.includes("#prompt=")
+      ) {
+        const cleanT = trimmed.replace(/^[#*\s:]+/, "").replace(/[:\s]+$/, "").trim();
+        if (cleanT) detectedTitle = cleanT;
+      }
+      if (trimmed.includes("#prompt=")) {
+        const promptText = trimmed
+          .replace(/^.*#prompt=/, "")
+          .replace(/\]\(#prompt=[^\)]*\)/, "")
+          .replace(/[\[\]\(\)]/g, "")
+          .trim();
+        if (promptText) {
+          options.push(promptText);
+        }
+      }
+    }
+
+    if (options.length > 0) {
+      questionData = {
+        title: detectedTitle,
+        options,
+      };
+      main = main
+        .replace(/(?:^|\n)(?:###?\s*)?ทางเลือกต่อยอดการทำงาน:?[\s\S]*$/gi, "")
+        .replace(/(?:^|\n)\[?#prompt=[^\n\]]+\]?(?:\([^\)]*\))?/gi, "")
+        .trim();
+    }
+  }
+
+  // 4. Extract trailing question with numbered choices (e.g. 1. ... 2. ...)
+  if (!questionData) {
+    const listPattern = /(?:\n\n|\n)([^\n]+\?)\s*\n((?:\s*\d+[\.\)]\s+[^\n]+\n*){2,6})$/i;
+    const listMatch = listPattern.exec(main);
+    if (listMatch) {
+      const title = listMatch[1].replace(/^[#*\s]+/, "").trim();
+      const rawOptions = listMatch[2];
+      const optLines = rawOptions
+        .split("\n")
+        .map((l) => l.replace(/^\s*\d+[\.\)]\s+/, "").trim())
+        .filter(Boolean);
+      if (optLines.length >= 2) {
+        questionData = { title, options: optLines };
+        main = main.replace(listPattern, "").trim();
+      }
+    }
+  }
+
+  return { thinking, main, questionData };
 };
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -217,7 +275,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
   // 1. Assistant Message
   if (isAssistant) {
-    const { thinking, main } = extractThinkingAndMain(message.content);
+    const { thinking, main, questionData } = extractThinkingMainAndQuestion(message.content);
 
     return (
       <motion.div
@@ -282,8 +340,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                     );
                   },
                   a({ href, children }: any) {
-                    const isClickablePrompt = href === "#send" || href?.startsWith("#prompt=");
-                    if (isClickablePrompt && onSendToChat) {
+                    if (href?.startsWith("#prompt=")) {
+                      return null;
+                    }
+                    if (href === "#send" && onSendToChat) {
                       const promptText = typeof children === "string" ? children : String(children);
                       return (
                         <button

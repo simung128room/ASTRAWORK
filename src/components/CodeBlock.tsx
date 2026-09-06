@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { Copy, Check, Download, Play, Eye, Sparkles, Terminal, GitCompare, RefreshCw, AlertTriangle } from "lucide-react";
+import { Copy, Check, Download, Play, Eye, Sparkles, Terminal, GitCompare, RefreshCw, AlertTriangle, ShieldAlert } from "lucide-react";
 import { zenAudio } from "../utils/zenAudio";
 import { executePythonInSandbox } from "../utils/pythonEvaluator";
 import { executeSqlInSandbox } from "../utils/sqlEvaluator";
+import { executeJsInBrowserSandbox } from "../utils/jsEvaluator";
 import { ArtifactPreviewModal } from "./ArtifactPreviewModal";
 import { DiffViewerModal } from "./DiffViewerModal";
 import { ExecutionResult } from "../types";
@@ -106,6 +107,8 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   const [isRunning, setIsRunning] = useState(false);
   const [execResult, setExecResult] = useState<ExecutionResult | null>(null);
   const [showConsole, setShowConsole] = useState(false);
+  const [showRunConfirm, setShowRunConfirm] = useState(false);
+  const [hasUserConfirmed, setHasUserConfirmed] = useState(false);
 
   // Auto-Debug Agent State
   const [isAutoDebugging, setIsAutoDebugging] = useState(false);
@@ -117,7 +120,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   const cleanLang = (language || "").toLowerCase().replace(/^language-/, "").trim() || "code";
 
   const isExecutable =
-    ["javascript", "js", "typescript", "ts", "python", "py", "sql", "html"].includes(cleanLang);
+    ["javascript", "js", "typescript", "ts", "python", "py", "sql"].includes(cleanLang);
 
   const isHtmlVisual = ["html", "svg", "jsx", "tsx"].includes(cleanLang);
 
@@ -142,8 +145,8 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Run Code Sandbox Action
-  const handleRunCode = async () => {
+  // Run Code Sandbox Action (Client-side Web Worker / Isolated AST Sandbox)
+  const executeCodeInternal = async () => {
     setIsRunning(true);
     setShowConsole(true);
     zenAudio.playSoftClick();
@@ -172,18 +175,13 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
           language: "SQL",
         });
       } else {
-        // JS/TS or Server Sandbox Endpoint
-        const response = await fetch("/api/run-code", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: currentCode, language: cleanLang }),
-        });
-        const data = await response.json();
+        // Safe Browser Web Worker Sandbox for JS / TS
+        const res = await executeJsInBrowserSandbox(currentCode);
         setExecResult({
-          success: data.success,
-          output: data.output || "",
-          error: data.error,
-          executionTimeMs: data.executionTimeMs || (performance.now() - start).toFixed(2),
+          success: res.success,
+          output: res.output,
+          error: res.error,
+          executionTimeMs: res.executionTimeMs,
           language: cleanLang.toUpperCase(),
         });
       }
@@ -197,6 +195,20 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
     } finally {
       setIsRunning(false);
     }
+  };
+
+  const handleRunCodeClick = () => {
+    if (!hasUserConfirmed) {
+      setShowRunConfirm(true);
+    } else {
+      executeCodeInternal();
+    }
+  };
+
+  const handleConfirmAndRun = () => {
+    setHasUserConfirmed(true);
+    setShowRunConfirm(false);
+    executeCodeInternal();
   };
 
   // Autonomous Agent Auto-Debugging Loop
@@ -261,9 +273,9 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
           {/* Run Code Button */}
           {isExecutable && (
             <button
-              onClick={handleRunCode}
+              onClick={handleRunCodeClick}
               disabled={isRunning}
-              title="รันโค้ดใน Sandbox"
+              title="รันโค้ดใน Browser Sandbox"
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 hover:text-white transition-all text-xs font-medium cursor-pointer active:scale-95"
             >
               {isRunning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
@@ -363,6 +375,47 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
               {execResult.output}
             </pre>
           )}
+        </div>
+      )}
+
+      {/* Security Confirmation Modal for AI Generated Code Execution */}
+      {showRunConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-zinc-900 border border-zinc-700/80 rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="font-semibold text-zinc-100 text-sm">
+                  ยืนยันการรันโค้ดที่สร้างโดย AI
+                </h4>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  โค้ดนี้จะถูกประมวลผลภายในเบราว์เซอร์ของคุณ (Client Sandbox Web Worker) โดยมีการจำกัดสิทธิ์ความปลอดภัยและ Timeout ไม่เกิน 3 วินาที คุณต้องการเริ่มรันโค้ดหรือไม่?
+                </p>
+              </div>
+            </div>
+
+            <div className="px-3 py-2 rounded-xl bg-zinc-950/70 border border-zinc-800 text-xs font-mono text-zinc-300 flex items-center justify-between">
+              <span className="text-zinc-500">ภาษา:</span>
+              <span className="text-purple-400 font-semibold uppercase">{cleanLang}</span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowRunConfirm(false)}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleConfirmAndRun}
+                className="px-4 py-1.5 rounded-xl text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-500 transition-all shadow-md shadow-emerald-600/30 active:scale-95"
+              >
+                ยืนยันและเริ่มรันโค้ด
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

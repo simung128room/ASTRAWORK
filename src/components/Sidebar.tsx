@@ -2,12 +2,10 @@ import React from "react";
 import { 
   X, 
   Settings, 
-  Download,
 } from "lucide-react";
 import { ChatSession, SystemPersona, ZenThemeConfig, ZenThemeId } from "../types";
 import { zenAudio } from "../utils/zenAudio";
 import { JomcodeLogo } from "./JomcodeLogo";
-import { downloadProjectZip } from "../utils/downloadZip";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -161,20 +159,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* Sidebar Footer: Settings & Download ZIP */}
+        {/* Sidebar Footer: Settings */}
         <div className="px-5 py-4 mt-auto border-t border-zinc-900 space-y-1">
-          <button
-            onClick={() => {
-              zenAudio.playSoftClick();
-              downloadProjectZip();
-            }}
-            title="ดาวน์โหลด Source Code เว็บทั้งหมด (.ZIP)"
-            className="font-inter flex items-center gap-3 px-1 py-2 text-[13px] text-emerald-400 hover:text-emerald-300 transition-all cursor-pointer w-full text-left"
-          >
-            <Download className="w-4.5 h-4.5 text-emerald-400" />
-            <span className="font-thai">โหลดซอร์สโค้ด ZIP (100 KB)</span>
-          </button>
-
           <button
             onClick={() => {
               zenAudio.playSoftClick();

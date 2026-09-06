@@ -1,7 +1,6 @@
 import React, { useState } from "react";
-import { X, Trash2, Sun, Globe, Download, FolderArchive } from "lucide-react";
+import { X, Trash2, Sun, Globe } from "lucide-react";
 import { ChatSession, ZenThemeConfig } from "../types";
-import { downloadProjectZip } from "../utils/downloadZip";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -71,29 +70,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span>ไทย (Thai)</span>
               <span className="text-zinc-500 text-[10px]">▼</span>
             </div>
-          </div>
-
-          {/* Download Source Code ZIP */}
-          <div className="p-3.5 bg-[#09090b] border border-emerald-500/20 rounded-xl space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="font-thai text-xs font-semibold text-emerald-400 flex items-center gap-2">
-                <FolderArchive className="w-4 h-4 text-emerald-400" />
-                Source Code โปรเจกต์ (.ZIP)
-              </span>
-              <span className="text-[10px] text-zinc-400 font-mono bg-zinc-800 px-2 py-0.5 rounded-full">
-                ~100 KB
-              </span>
-            </div>
-            <p className="text-[11px] text-zinc-400 font-thai leading-relaxed">
-              ไฟล์โปรเจกต์เว็บทั้งหมด (Frontend, Server, Configs) พร้อมรันในเครื่องหรือ Deploy ต่อได้ทันที
-            </p>
-            <button
-              onClick={() => downloadProjectZip()}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer text-xs shadow-md shadow-emerald-950"
-            >
-              <Download className="w-4 h-4" />
-              <span>ดาวน์โหลดไฟล์ ZIP ตอนนี้ (~100 KB)</span>
-            </button>
           </div>
 
           {/* Delete All Chats Button */}

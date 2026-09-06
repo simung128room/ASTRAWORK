@@ -1,17 +1,21 @@
 import React, { useState, useRef, useEffect } from "react";
 import { 
-  Paperclip, 
+  Plus,
+  Camera,
+  Image as ImageIcon,
+  Paperclip,
+  Brain,
   ArrowUp, 
   Square, 
   X,
-  UploadCloud
+  UploadCloud,
+  Check
 } from "lucide-react";
 import { FileAttachment, ZenThemeConfig } from "../types";
+import { JOM_MODELS } from "../data/presets";
 import { zenAudio } from "../utils/zenAudio";
 import { motion, AnimatePresence } from "motion/react";
 import { FileSkeleton, getFileIcon } from "./SkeletonLoader";
-
-import { VoiceInputButton } from "./VoiceInputButton";
 
 interface ChatInputProps {
   onSendMessage: (text: string, attachments?: FileAttachment[]) => void;
@@ -41,6 +45,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   onStopStreaming,
   isStreaming,
   isHeroMode = false,
+  currentModelId = "JOM-AGENT",
+  onSelectModel,
 }) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
@@ -49,9 +55,38 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [loadingFiles, setLoadingFiles] = useState<{ id: string; name: string }[]>([]);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
+  const [isDeepThinking, setIsDeepThinking] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const plusButtonRef = useRef<HTMLButtonElement>(null);
+
+  const currentModel = JOM_MODELS[0];
+
+  // Close plus menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target as Node) &&
+        plusButtonRef.current &&
+        !plusButtonRef.current.contains(event.target as Node)
+      ) {
+        setIsPlusMenuOpen(false);
+      }
+    };
+
+    if (isPlusMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isPlusMenuOpen]);
 
   // Typewriter effect in pure Thai
   useEffect(() => {
@@ -90,9 +125,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if ((!input.trim() && attachments.length === 0) || isStreaming) return;
 
     zenAudio.playSoftClick();
-    onSendMessage(input.trim(), attachments);
+
+    let finalText = input.trim();
+    if (isDeepThinking) {
+      finalText = `[โหมด: คิดให้รอบคอบขึ้น (Deep Reasoning)]\n${finalText}`;
+    }
+
+    onSendMessage(finalText, attachments);
     setInput("");
     setAttachments([]);
+    setIsPlusMenuOpen(false);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -236,6 +278,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {/* Hidden File Inputs for Camera, Image Gallery, and Documents */}
       <input
         ref={fileInputRef}
         type="file"
@@ -243,6 +286,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         onChange={handleFileUpload}
         className="hidden"
         accept="*/*"
+      />
+      <input
+        ref={imageInputRef}
+        type="file"
+        multiple
+        onChange={handleFileUpload}
+        className="hidden"
+        accept="image/*"
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        onChange={handleFileUpload}
+        className="hidden"
+        accept="image/*"
+        capture="environment"
       />
 
       {/* Drag & Drop Visual Overlay */}
@@ -261,6 +320,27 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Active Thinking Mode Chip */}
+      {isDeepThinking && (
+        <motion.div 
+          initial={{ opacity: 0, y: 4, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          className="flex items-center gap-1.5 px-3 py-1.5 mb-2 rounded-full bg-zinc-800/90 border border-purple-500/40 text-purple-200 text-xs w-fit font-thai shadow-md"
+        >
+          <Brain className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+          <span className="font-medium text-[12.5px]">คิดให้รอบคอบขึ้น (Deep Reasoning)</span>
+          <button
+            type="button"
+            onClick={() => setIsDeepThinking(false)}
+            className="ml-1 p-0.5 hover:bg-zinc-700 rounded-full text-zinc-400 hover:text-zinc-200 cursor-pointer"
+            title="ปิดโหมดคิดรอบคอบ"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </motion.div>
+      )}
 
       {/* Attachments & Skeleton Loaders Row */}
       {(attachments.length > 0 || loadingFiles.length > 0) && (
@@ -311,31 +391,128 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </div>
       )}
 
-      {/* 0xAlpha Refined Capsule Input Container */}
+      {/* Pop-up Menu matching Screenshot (Plus button trigger) */}
+      <AnimatePresence>
+        {isPlusMenuOpen && (
+          <motion.div
+            ref={menuRef}
+            initial={{ opacity: 0, y: 14, scale: 0.92 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.92 }}
+            transition={{ type: "spring", stiffness: 480, damping: 30 }}
+            className="absolute bottom-[calc(100%+8px)] left-0 z-50 w-56 bg-[#212124] border border-zinc-800/90 rounded-[28px] p-2.5 shadow-2xl shadow-black/90 font-thai text-left backdrop-blur-xl"
+          >
+            <div className="flex flex-col gap-0.5">
+              {/* 1. กล้อง */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPlusMenuOpen(false);
+                  cameraInputRef.current?.click();
+                }}
+                className="w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl hover:bg-zinc-800/70 active:bg-zinc-800 transition-colors text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-full bg-zinc-800/90 group-hover:bg-zinc-700 text-zinc-100 flex items-center justify-center shrink-0 transition-colors shadow-xs">
+                  <Camera className="w-5 h-5 stroke-[1.8]" />
+                </div>
+                <span className="text-[15.5px] font-thai font-medium text-zinc-100 tracking-tight">
+                  กล้อง
+                </span>
+              </button>
+
+              {/* 2. รูปภาพ */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPlusMenuOpen(false);
+                  imageInputRef.current?.click();
+                }}
+                className="w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl hover:bg-zinc-800/70 active:bg-zinc-800 transition-colors text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-full bg-zinc-800/90 group-hover:bg-zinc-700 text-zinc-100 flex items-center justify-center shrink-0 transition-colors shadow-xs">
+                  <ImageIcon className="w-5 h-5 stroke-[1.8]" />
+                </div>
+                <span className="text-[15.5px] font-thai font-medium text-zinc-100 tracking-tight">
+                  รูปภาพ
+                </span>
+              </button>
+
+              {/* 3. ไฟล์ */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPlusMenuOpen(false);
+                  fileInputRef.current?.click();
+                }}
+                className="w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl hover:bg-zinc-800/70 active:bg-zinc-800 transition-colors text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-full bg-zinc-800/90 group-hover:bg-zinc-700 text-zinc-100 flex items-center justify-center shrink-0 transition-colors shadow-xs">
+                  <Paperclip className="w-5 h-5 -rotate-45 stroke-[1.8]" />
+                </div>
+                <span className="text-[15.5px] font-thai font-medium text-zinc-100 tracking-tight">
+                  ไฟล์
+                </span>
+              </button>
+
+              {/* 4. คิดให้รอบคอบขึ้น */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDeepThinking(!isDeepThinking);
+                  setIsPlusMenuOpen(false);
+                  zenAudio.playSoftClick();
+                }}
+                className="w-full flex items-center justify-between py-2.5 px-3 rounded-2xl hover:bg-zinc-800/70 active:bg-zinc-800 transition-colors text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors shadow-xs ${
+                      isDeepThinking
+                        ? "bg-purple-600 text-white"
+                        : "bg-zinc-800/90 group-hover:bg-zinc-700 text-zinc-100"
+                    }`}
+                  >
+                    <Brain className="w-5 h-5 stroke-[1.8]" />
+                  </div>
+                  <span className="text-[15.5px] font-thai font-medium text-zinc-100 tracking-tight">
+                    คิดให้รอบคอบขึ้น
+                  </span>
+                </div>
+                {isDeepThinking && (
+                  <Check className="w-4 h-4 text-purple-400 mr-1" />
+                )}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Refined Capsule Input Container */}
       <motion.div
         layout
         transition={{ duration: 0.2 }}
-        className={`relative flex items-center bg-[#18181b] border border-[#27272a] focus-within:border-zinc-700 rounded-full px-3.5 py-2 transition-all shadow-lg ${
+        className={`relative flex items-center bg-[#18181b] border border-[#27272a] focus-within:border-zinc-700 rounded-full px-2.5 sm:px-3 py-2 transition-all shadow-lg ${
           isHeroMode ? "min-h-[56px]" : "min-h-[50px]"
         }`}
       >
-        {/* Left: Paperclip & Voice Buttons */}
-        <div className="flex items-center gap-0.5 shrink-0">
+        {/* Left: Plus (+) Button */}
+        <div className="flex items-center shrink-0">
           <button
+            ref={plusButtonRef}
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            title="แนบไฟล์ / อัปโหลดรูปภาพ"
-            className="p-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 rounded-full transition-all shrink-0 cursor-pointer active:scale-95"
-          >
-            <Paperclip className="w-5 h-5 -rotate-45" />
-          </button>
-
-          <VoiceInputButton
-            onTranscript={(speechText) => {
-              setInput((prev) => (prev ? `${prev} ${speechText}` : speechText));
+            onClick={() => {
+              setIsPlusMenuOpen(!isPlusMenuOpen);
               zenAudio.playSoftClick();
             }}
-          />
+            title="กล้อง, รูปภาพ, ไฟล์, คิดให้รอบคอบขึ้น"
+            className={`p-2 rounded-full transition-all shrink-0 cursor-pointer active:scale-95 ${
+              isPlusMenuOpen || isDeepThinking
+                ? "bg-zinc-800 text-zinc-100"
+                : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80"
+            }`}
+          >
+            <Plus className={`w-5 h-5 transition-transform duration-200 ${isPlusMenuOpen ? "rotate-45" : ""}`} />
+          </button>
         </div>
 
         {/* Center: Input / Textarea */}

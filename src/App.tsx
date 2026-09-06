@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { ChatSession, Message, SystemPersona, ZenThemeId, FileAttachment } from "./types";
 import { SYSTEM_PERSONAS, ZEN_THEMES } from "./data/presets";
 import { Sidebar } from "./components/Sidebar";
-import { ChatMessage } from "./components/ChatMessage";
+import { ChatMessage, extractThinkingMainAndQuestion } from "./components/ChatMessage";
 import { ChatInput } from "./components/ChatInput";
+import { ClaudeQuestionSheet } from "./components/ClaudeQuestionSheet";
 import { SettingsModal } from "./components/SettingsModal";
 import { zenAudio } from "./utils/zenAudio";
-import { ArrowDown, Menu, Brain, Download } from "lucide-react";
+import { ArrowDown, Menu, Brain } from "lucide-react";
 import { JomcodeLogo } from "./components/JomcodeLogo";
 import { DynamicGreeting } from "./components/DynamicGreeting";
 import { KnowledgeModal } from "./components/KnowledgeModal";
 import { KnowledgeItem } from "./types";
-import { downloadProjectZip } from "./utils/downloadZip";
 
 const STORAGE_KEY_SESSIONS = "opencode_zen_sessions_v2";
 const STORAGE_KEY_THEME = "opencode_zen_theme_v2";
@@ -25,7 +26,7 @@ const DEFAULT_SESSION: ChatSession = {
   updatedAt: Date.now(),
   messages: [],
   personaId: "zen-coder",
-  model: "J-1.0",
+  model: "JOM-AGENT",
   temperature: 0.7,
   scratchpadCode: `// กระดานทดลองโค้ด - ทดสอบโค้ดของคุณที่นี่\nfunction add(a: number, b: number): number {\n  return a + b;\n}\n\nconsole.log(add(10, 25));`,
   scratchpadLang: "typescript",
@@ -51,7 +52,7 @@ export default function App() {
           if (Array.isArray(parsed) && parsed.length > 0) {
             return parsed.map((s: ChatSession) => ({
               ...s,
-              model: s.model?.includes("J-1.0") || s.model?.includes("xkiro") || s.model?.includes("deepseek") || s.model?.includes("mistral") || s.model?.includes("qwen") ? s.model : "J-1.0",
+              model: s.model?.includes("JOM-AGENT") ? s.model : "JOM-AGENT",
             }));
           }
         }
@@ -79,6 +80,7 @@ export default function App() {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [dismissedQuestionIds, setDismissedQuestionIds] = useState<Set<string>>(new Set());
 
   // RAG Knowledge Items State
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>(() => {
@@ -114,6 +116,17 @@ export default function App() {
   // Active session helper
   const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0] || DEFAULT_SESSION;
   const selectedPersona = SYSTEM_PERSONAS.find((p) => p.id === activeSession.personaId) || SYSTEM_PERSONAS[0];
+
+  // Active question extracted from the latest assistant message (Claude style)
+  const latestMessage = activeSession.messages[activeSession.messages.length - 1];
+  const latestParsed =
+    latestMessage?.role === "assistant" && !isStreaming
+      ? extractThinkingMainAndQuestion(latestMessage.content)
+      : null;
+  const activeQuestion =
+    latestMessage && !dismissedQuestionIds.has(latestMessage.id)
+      ? latestParsed?.questionData
+      : null;
 
   // Save to localStorage
   useEffect(() => {
@@ -213,7 +226,7 @@ export default function App() {
       role: "assistant",
       content: "",
       timestamp: Date.now(),
-      model: activeSession.model || "J-1.0",
+      model: activeSession.model || "JOM-AGENT",
       isStreaming: true,
     };
 
@@ -260,7 +273,7 @@ export default function App() {
           attachments: attachments,
           history: historyPayload,
           personaId: activeSession.personaId || "zen-coder",
-          model: activeSession.model || "J-1.0",
+          model: activeSession.model || "JOM-AGENT",
           temperature: activeSession.temperature ?? 0.7,
           customSystemPrompt: activeSession.customSystemPrompt,
           knowledgeItems: knowledgeItems,
@@ -598,7 +611,7 @@ export default function App() {
 
       {/* Main Column */}
       <main className="flex-1 flex flex-col min-w-0 h-[100dvh] relative overflow-hidden bg-[#000000] z-10">
-        {/* Top Header Controls: Sidebar & Knowledge Base & Download ZIP */}
+        {/* Top Header Controls: Sidebar & Knowledge Base */}
         <div className="absolute top-3.5 left-3.5 right-3.5 z-30 flex items-center justify-between pointer-events-none">
           <button
             onClick={() => setIsSidebarOpen((prev) => !prev)}
@@ -609,19 +622,6 @@ export default function App() {
           </button>
 
           <div className="flex items-center gap-2 pointer-events-auto">
-            <button
-              onClick={() => {
-                zenAudio.playSoftClick();
-                downloadProjectZip();
-              }}
-              title="ดาวน์โหลด Source Code ทั้งหมด (.ZIP)"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 hover:text-white text-xs font-medium transition-all cursor-pointer backdrop-blur-md active:scale-95 shadow-xs"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">ดาวน์โหลด ZIP (100 KB)</span>
-              <span className="sm:hidden">ZIP</span>
-            </button>
-
             <button
               onClick={() => setIsKnowledgeOpen(true)}
               title="จัดการข้อมูลบริบท RAG & ความรู้โปรเจกต์"
@@ -652,7 +652,7 @@ export default function App() {
                 onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
                 selectedPersonaName={selectedPersona.name}
                 isHeroMode={true}
-                currentModelId={activeSession.model || "J-1.0"}
+                currentModelId={activeSession.model || "JOM-AGENT"}
                 onSelectModel={(model) => {
                   setSessions((prev) =>
                     prev.map((s) => (s.id === activeSession.id ? { ...s, model } : s))
@@ -697,24 +697,49 @@ export default function App() {
               </button>
             )}
 
-            {/* Bottom Docked Input */}
+            {/* Bottom Docked Input / Claude Question Sheet */}
             <div className="w-full max-w-2xl mx-auto px-4 sm:px-6 pb-2">
-              <ChatInput
-                onSendMessage={handleSendMessage}
-                onStopStreaming={handleStopStreaming}
-                isStreaming={isStreaming}
-                theme={currentTheme}
-                isFocusMode={isFocusMode}
-                onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
-                selectedPersonaName={selectedPersona.name}
-                isHeroMode={false}
-                currentModelId={activeSession.model || "J-1.0"}
-                onSelectModel={(model) => {
-                  setSessions((prev) =>
-                    prev.map((s) => (s.id === activeSession.id ? { ...s, model } : s))
-                  );
-                }}
-              />
+              <AnimatePresence mode="wait">
+                {activeQuestion ? (
+                  <ClaudeQuestionSheet
+                    key={`q-${latestMessage?.id || "active"}`}
+                    question={activeQuestion}
+                    onSelectOption={(answer) => {
+                      handleSendMessage(answer);
+                    }}
+                    onDismiss={() => {
+                      if (latestMessage) {
+                        setDismissedQuestionIds((prev) => new Set(prev).add(latestMessage.id));
+                      }
+                    }}
+                  />
+                ) : (
+                  <motion.div
+                    key="chat-input-bar"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 16 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  >
+                    <ChatInput
+                      onSendMessage={handleSendMessage}
+                      onStopStreaming={handleStopStreaming}
+                      isStreaming={isStreaming}
+                      theme={currentTheme}
+                      isFocusMode={isFocusMode}
+                      onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+                      selectedPersonaName={selectedPersona.name}
+                      isHeroMode={false}
+                      currentModelId={activeSession.model || "JOM-AGENT"}
+                      onSelectModel={(model) => {
+                        setSessions((prev) =>
+                          prev.map((s) => (s.id === activeSession.id ? { ...s, model } : s))
+                        );
+                      }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </>
         )}
