@@ -1,20 +1,21 @@
-import { JomModel, PromptPreset, SystemPersona, ZenThemeConfig, ZenThemeId } from "../types";
+import { JomModel, PromptPreset, ZenThemeConfig, ZenThemeId } from "../types";
 
-export const Z_MODELS: JomModel[] = [
+export const NEXA_MODELS: JomModel[] = [
   {
-    id: "Z one",
-    name: "Z-One (ZEROWORK Z-One Omni Autonomous Intelligence)",
-    pillLabel: "Z one",
-    engine: "Z-One Cognitive Engine (Gemini 3.6 Flash + 3.1 Pro Core + Deep Reasoning + Live Grounding)",
-    title: "ZEROWORK Z-One",
-    subtitle: "สถาปัตยกรรมรุ่นอัปเกรดสูงสุด Z one: เขียนโค้ดระดับ Production คิดเชิงลึก ตรวจสอบความถูกต้องอัตโนมัติ แม่นยำ ไม่วนกฎ",
-    badge: "Z-One Core",
-    tagline: "สุดยอด AI Super-Agent รุ่น Z one ทรงพลัง ฉลาดล้ำ แก้ปัญหาซับซ้อนและเขียนโปรแกรมตัวเต็มได้ทันที",
-    speed: "สูงสุด (Ultra-High Speed & Deep Reasoning)",
+    id: "NEXA",
+    name: "NEXA (Unified Omni Super-Intelligence)",
+    pillLabel: "NEXA",
+    engine: "NEXA Hyper-Cluster (DeepSeek V4 Pro + Qwen 3.8 Max + Mistral Large + Minimax + Gemini Flash)",
+    title: "NEXA",
+    subtitle: "โมเดลเดียวรวมทุกขุมพลังสูงสุด: ผสาน DeepSeek V4 Pro, Qwen 3.8 Max, Mistral Large, Minimax และ Gemini Flash เพื่อการสนทนารอบด้านและวิศวกรรมซอฟต์แวร์ที่โหดที่สุด",
+    badge: "Unified Hyper-Model",
+    tagline: "สุดยอด AI รวมพลังหนึ่งเดียว ฉลาดรอบด้าน วิเคราะห์ตรรกะซับซ้อน คุยได้ทุกเรื่อง และเขียนโค้ดตัวเต็มระดับ Production ไร้ที่ติ",
+    speed: "สูงสุด (Frontier Multi-Model Cascade & Ultra Performance)",
   },
 ];
 
-export const JOM_MODELS = Z_MODELS;
+export const Z_MODELS = NEXA_MODELS;
+export const JOM_MODELS = NEXA_MODELS;
 
 export const ZEN_THEMES: Record<ZenThemeId, ZenThemeConfig> = {
   "geometric-balance": {
@@ -127,65 +128,30 @@ export const ZEN_THEMES: Record<ZenThemeId, ZenThemeConfig> = {
   },
 };
 
-export const SYSTEM_PERSONAS: SystemPersona[] = [
-  {
-    id: "zen-coder",
-    name: "ผู้ช่วย จอม",
-    nameTh: "ผู้ช่วย จอม",
-    tagline: "เขียนโค้ดคลีน มีประสิทธิภาพ อธิบายเข้าใจง่ายเป็นกันเอง",
-    icon: "Compass",
-    instruction: `คุณคือ จอม ผู้ช่วยพัฒนาโปรแกรมและเขียนโค้ดอัจฉริยะ (AI Coding Assistant)
-หลักการทำงาน:
-- สื่อสารและตอบเป็นภาษาไทยอย่างสุภาพ กระชับ ชัดเจน และเป็นมิตร (หากผู้ใช้ถามเป็นภาษาอังกฤษให้ตอบตามภาษาของผู้ใช้)
-- เขียนโค้ดที่สะอาด (Clean Code), มีประสิทธิภาพสูง และปราศจากบั๊ก
-- จัดรูปแบบโค้ดด้วย Markdown code block พร้อมระบุภาษาอย่างถูกต้องเสมอ (เช่น \`\`\`tsx, \`\`\`typescript, \`\`\`python, \`\`\`html, \`\`\`json)
-- อธิบายประเด็นสำคัญอย่างตรงจุด พร้อมแนวคิดและข้อควรระวัง`,
-    suggestedTemperature: 0.5,
-  },
-  {
-    id: "pair-programmer",
-    name: "คู่หูเขียนโค้ด (Pair Programmer)",
-    nameTh: "คู่หูเขียนโค้ด",
-    tagline: "แนะนำทีละขั้นตอน รีแฟกเตอร์ และคิดสถาปัตยกรรมร่วมกัน",
-    icon: "Terminal",
-    instruction: `คุณคือซีเนียร์โปรแกรมเมอร์คู่คิด (Pair Programmer) ที่ใจเย็นและร่วมมือกับผู้ใช้
-อธิบายการตัดสินใจด้านสถาปัตยกรรม แนะนำทางเลือกที่ดีที่สุด เขียนโค้ดที่พร้อมใช้งานจริง และชี้จุด edge case ตอบเป็นภาษาไทยอย่างเป็นมิตร`,
-    suggestedTemperature: 0.7,
-  },
-  {
-    id: "bug-slayer",
-    name: "ผู้เชี่ยวชาญแก้บั๊ก (Debug Specialist)",
-    nameTh: "ผู้เชี่ยวชาญแก้บั๊ก",
-    tagline: "วิเคราะห์สาเหตุของปัญหา เจาะลึกจุดผิดพลาด และแนะนำวิธีแก้ไข",
-    icon: "ShieldAlert",
-    instruction: `คุณคือผู้เชี่ยวชาญด้านการดีบักและวิเคราะห์ข้อผิดพลาดของซอฟต์แวร์
-เมื่อได้รับโค้ดหรือ error message:
-1. ระบุสาเหตุที่แท้จริง (Root Cause) อย่างชัดเจน
-2. ให้โค้ดที่แก้ไขแล้วพร้อมคำอธิบาย
-3. อธิบายว่าทำไมถึงเกิดบั๊กและวิธีป้องกันในอนาคต`,
-    suggestedTemperature: 0.3,
-  },
-  {
-    id: "code-architect",
-    name: "สถาปนิกซอฟต์แวร์ (Software Architect)",
-    nameTh: "สถาปัตยกรรมซอฟต์แวร์",
-    tagline: "ออกแบบระบบ, Clean Architecture, Database Schema และ Scalability",
-    icon: "Layers",
-    instruction: `คุณคือ Principal Software Architect
-มุ่งเน้นการออกแบบระบบ การเลือก Design Patterns สถาปัตยกรรมคลีน ฐานข้อมูล และการออกแบบ API ที่รองรับการขยายตัว (Scalable)`,
-    suggestedTemperature: 0.6,
-  },
-];
-
 export const PROMPT_PRESETS: PromptPreset[] = [
   {
-    id: "refactor",
-    title: "รีแฟกเตอร์โค้ด",
-    titleTh: "รีแฟกเตอร์โค้ด",
+    id: "general-summarize",
+    title: "สรุปใจความสำคัญ",
+    titleTh: "สรุปใจความสำคัญ",
     iconName: "Sparkles",
-    prompt: "ช่วยรีแฟกเตอร์และปรับปรุงโค้ดนี้ให้คลีน อ่านง่าย มีประสิทธิภาพสูงสุด และตรงตาม Best Practices พร้อมอธิบายจุดที่ปรับปรุง:\n\n```\n// วางโค้ดที่นี่\n```",
-    category: "refactor",
-    shortcut: "Alt+R",
+    prompt: "ช่วยสรุปใจความสำคัญของข้อความหรือบทความนี้ให้กระชับ เข้าใจง่าย และแยกเป็นประเด็นหลักให้ชัดเจน:\n\n",
+    category: "general",
+  },
+  {
+    id: "general-email",
+    title: "ร่างอีเมลมืออาชีพ",
+    titleTh: "ร่างอีเมลมืออาชีพ",
+    iconName: "Layout",
+    prompt: "ช่วยร่างอีเมลติดต่อที่เป็นมืออาชีพ สุภาพ ชัดเจน และตรงประเด็น โดยมีรายละเอียดดังนี้:\n- ถึงใคร:\n- วัตถุประสงค์:\n- ข้อมูลสำคัญ:",
+    category: "general",
+  },
+  {
+    id: "general-brainstorm",
+    title: "ช่วยคิดไอเดีย & วางแผน",
+    titleTh: "ช่วยคิดไอเดีย & วางแผน",
+    iconName: "HelpCircle",
+    prompt: "ช่วยระดมความคิด (Brainstorming) และเสนอไอเดียที่สร้างสรรค์และนำไปใช้ได้จริงสำหรับหัวข้อนี้ พร้อมจัดลำดับขั้นตอนการลงมือทำ:",
+    category: "general",
   },
   {
     id: "debug",
@@ -197,36 +163,20 @@ export const PROMPT_PRESETS: PromptPreset[] = [
     shortcut: "Alt+D",
   },
   {
-    id: "tests",
-    title: "สร้าง Unit Tests",
-    titleTh: "สร้าง Unit Tests",
-    iconName: "CheckSquare",
-    prompt: "ช่วยเขียน Unit Tests ที่ครอบคลุม edge cases, mocking และ assertions สำหรับโค้ดนี้:\n\n```\n// วางโค้ดที่นี่\n```",
-    category: "code",
-    shortcut: "Alt+T",
-  },
-  {
-    id: "explain",
-    title: "อธิบายการทำงานของโค้ด",
-    titleTh: "อธิบายการทำงานของโค้ด",
-    iconName: "HelpCircle",
-    prompt: "ช่วยอธิบายการทำงานของโค้ดนี้ทีละขั้นตอนอย่างละเอียดและเข้าใจง่าย:\n\n```\n// วางโค้ดที่นี่\n```",
-    category: "explain",
+    id: "refactor",
+    title: "รีแฟกเตอร์โค้ด",
+    titleTh: "รีแฟกเตอร์โค้ด",
+    iconName: "Sparkles",
+    prompt: "ช่วยรีแฟกเตอร์และปรับปรุงโค้ดนี้ให้คลีน อ่านง่าย มีประสิทธิภาพสูงสุด และตรงตาม Best Practices พร้อมอธิบายจุดที่ปรับปรุง:\n\n```\n// วางโค้ดที่นี่\n```",
+    category: "refactor",
+    shortcut: "Alt+R",
   },
   {
     id: "html-widget",
-    title: "สร้าง UI / วิดเจ็ต",
-    titleTh: "สร้าง UI / วิดเจ็ต",
+    title: "สร้าง UI / โค้ดคอมโพเนนต์",
+    titleTh: "สร้าง UI / โค้ดคอมโพเนนต์",
     iconName: "Layout",
-    prompt: "ช่วยเขียนโค้ดสร้าง Modern Interactive Web Component (HTML/CSS/JS หรือ Tailwind) ที่สวยงามและพร้อมใช้งาน:",
+    prompt: "ช่วยเขียนโค้ดสร้าง Modern Interactive Web Component (HTML/CSS/JS หรือ React/Tailwind) ที่สวยงามและพร้อมใช้งาน:",
     category: "generate",
-  },
-  {
-    id: "complexity",
-    title: "วิเคราะห์ Big O Complexity",
-    titleTh: "วิเคราะห์ Big O Complexity",
-    iconName: "Gauge",
-    prompt: "ช่วยวิเคราะห์ Time Complexity (Big O) และ Space Complexity ของอัลกอริทึมนี้ พร้อมแนะนำแนวทาง Optimize หากทำได้:\n\n```\n// วางอัลกอริทึมที่นี่\n```",
-    category: "architecture",
   },
 ];

@@ -1,21 +1,15 @@
-import React, { useState } from "react";
+import React from "react";
 import { 
   X, 
   Settings, 
   Pin, 
   Trash2, 
-  Compass, 
-  Terminal, 
-  ShieldAlert, 
-  Layers, 
   Download, 
-  Upload, 
-  ChevronDown 
+  Upload 
 } from "lucide-react";
-import { ChatSession, SystemPersona, ZenThemeConfig, ZenThemeId } from "../types";
-import { SYSTEM_PERSONAS } from "../data/presets";
+import { ChatSession, ZenThemeConfig, ZenThemeId } from "../types";
 import { zenAudio } from "../utils/zenAudio";
-import { ZeroworkLogo } from "./ZeroworkLogo";
+import { NexaLogo } from "./ZeroworkLogo";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -28,8 +22,6 @@ interface SidebarProps {
   onTogglePinSession: (id: string) => void;
   currentTheme: ZenThemeConfig;
   onSelectTheme: (themeId: ZenThemeId) => void;
-  selectedPersona: SystemPersona;
-  onSelectPersona: (persona: SystemPersona) => void;
   onOpenSettings: () => void;
   onExportAll: () => void;
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -44,13 +36,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNewSession,
   onDeleteSession,
   onTogglePinSession,
-  selectedPersona,
-  onSelectPersona,
   onOpenSettings,
   onExportAll,
   onImport,
 }) => {
-  const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const now = Date.now();
   const ONE_DAY = 24 * 60 * 60 * 1000;
   const ONE_WEEK = 7 * ONE_DAY;
@@ -63,16 +52,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     (s) => now - s.updatedAt >= ONE_DAY && now - s.updatedAt < ONE_WEEK
   );
   const previousSessions = unpinnedSessions.filter((s) => now - s.updatedAt >= ONE_WEEK);
-
-  const getPersonaIcon = (iconName: string) => {
-    switch (iconName) {
-      case "Compass": return <Compass className="w-3.5 h-3.5" />;
-      case "Terminal": return <Terminal className="w-3.5 h-3.5" />;
-      case "ShieldAlert": return <ShieldAlert className="w-3.5 h-3.5" />;
-      case "Layers": return <Layers className="w-3.5 h-3.5" />;
-      default: return <Compass className="w-3.5 h-3.5" />;
-    }
-  };
 
   const renderSessionGroup = (title: string, groupSessions: ChatSession[]) => {
     if (groupSessions.length === 0) return null;
@@ -152,7 +131,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        {/* Top Header: ZEROWORK Logo + Close Button */}
+        {/* Top Header: NEXA Logo + Close Button */}
         <div className="h-18 px-5 pt-safe flex items-center justify-between border-b border-zinc-900/50">
           <div 
             onClick={() => {
@@ -160,9 +139,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               if (window.innerWidth < 1024) onClose();
             }} 
             className="flex items-center cursor-pointer hover:opacity-85 transition-opacity py-1 flex-1 min-w-0 pr-2"
-            title="ZEROWORK"
+            title="NEXA"
           >
-            <ZeroworkLogo height={38} className="max-w-[190px]" />
+            <NexaLogo height={38} className="max-w-[190px]" />
           </div>
 
           {/* Close Sidebar button */}
@@ -176,7 +155,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* New Chat Primary Button */}
-        <div className="px-5 pt-4 pb-2">
+        <div className="px-5 pt-4 pb-3">
           <button
             onClick={() => {
               zenAudio.playSoftClick();
@@ -187,51 +166,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <span>แชทใหม่</span>
           </button>
-        </div>
-
-        {/* Persona Switcher Capsule */}
-        <div className="px-5 py-2 relative">
-          <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5 px-1 font-inter">
-            บทบาทผู้ช่วย (Persona)
-          </div>
-          <button
-            onClick={() => setShowPersonaMenu(!showPersonaMenu)}
-            className="w-full px-3 py-2 bg-[#161618] hover:bg-zinc-800/80 border border-zinc-800 rounded-xl flex items-center justify-between text-xs text-zinc-200 transition-colors cursor-pointer"
-          >
-            <div className="flex items-center gap-2 truncate">
-              <span className="text-purple-400">{getPersonaIcon(selectedPersona.icon)}</span>
-              <span className="font-thai truncate font-medium">{selectedPersona.nameTh || selectedPersona.name}</span>
-            </div>
-            <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${showPersonaMenu ? "rotate-180" : ""}`} />
-          </button>
-
-          {showPersonaMenu && (
-            <div className="absolute left-5 right-5 mt-1.5 bg-[#18181b] border border-zinc-800 rounded-xl p-1.5 shadow-xl z-50 space-y-1">
-              {SYSTEM_PERSONAS.map((p) => {
-                const isSelected = selectedPersona.id === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => {
-                      onSelectPersona(p);
-                      setShowPersonaMenu(false);
-                      zenAudio.playSoftClick();
-                    }}
-                    className={`w-full px-2.5 py-2 rounded-lg text-left text-xs flex items-center gap-2.5 transition-colors cursor-pointer ${
-                      isSelected
-                        ? "bg-purple-600 text-white font-medium shadow-xs"
-                        : "text-zinc-300 hover:bg-zinc-800"
-                    }`}
-                  >
-                    <span>{getPersonaIcon(p.icon)}</span>
-                    <div className="truncate">
-                      <div className="font-thai truncate">{p.nameTh || p.name}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </div>
 
         {/* Chat Sessions List Grouped by Pin & Date */}
@@ -252,28 +186,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Sidebar Footer: Quick Backup + Settings */}
         <div className="px-5 py-3 mt-auto border-t border-zinc-900 space-y-2 bg-[#0a0a0c]">
-          <div className="flex items-center justify-between text-xs text-zinc-400 px-1 pt-1">
-            <button
-              onClick={() => {
-                onExportAll();
-                zenAudio.playZenChime();
-              }}
-              title="ส่งออกสำรองข้อมูลทั้งหมด"
-              className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer py-1"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-400" />
-              <span>สำรองข้อมูล</span>
-            </button>
-            <label
-              title="นำเข้าไฟล์สำรองข้อมูล"
-              className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer py-1"
-            >
-              <Upload className="w-3.5 h-3.5 text-amber-400" />
-              <span>นำเข้า</span>
-              <input type="file" accept=".json" onChange={onImport} className="hidden" />
-            </label>
-          </div>
-
           <button
             onClick={() => {
               zenAudio.playSoftClick();

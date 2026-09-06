@@ -1,13 +1,13 @@
 import React from "react";
 
-interface StarLogoProps {
+interface NexaLogoProps {
   className?: string;
   size?: number | string;
   height?: number | string;
   width?: number | string;
 }
 
-export const StarEmblemLogo: React.FC<StarLogoProps> = ({
+export const NexaEmblemLogo: React.FC<NexaLogoProps> = ({
   className = "",
   size,
   height = 36,
@@ -27,10 +27,10 @@ export const StarEmblemLogo: React.FC<StarLogoProps> = ({
         width: finalWidth === "auto" ? "auto" : finalWidth,
         aspectRatio: "1/1",
       }}
-      aria-label="Star Emblem Logo"
+      aria-label="NEXA Original Star Emblem"
     >
       {/* 
-        5 Sharp White Shards surrounding central black negative space star
+        Original 5 Sharp White Shards surrounding central black negative space star
       */}
       {/* Shard 1: Top Shard */}
       <polygon points="428,195 300,405 452,360" fill="#FFFFFF" />
@@ -50,7 +50,9 @@ export const StarEmblemLogo: React.FC<StarLogoProps> = ({
   );
 };
 
-export const ZeroworkLogo: React.FC<{
+export const StarEmblemLogo = NexaEmblemLogo;
+
+export const NexaLogo: React.FC<{
   className?: string;
   height?: number | string;
   width?: number | string;
@@ -66,12 +68,18 @@ export const ZeroworkLogo: React.FC<{
       className={`inline-flex items-center gap-3 select-none ${className}`}
       style={{ height, width: width === "auto" ? "auto" : width }}
     >
-      <StarEmblemLogo height={height} />
+      <NexaEmblemLogo height={height} />
       {showText && (
-        <span className="font-bold text-white tracking-widest text-[15px] font-sans select-none flex items-center">
-          ZEROWORK
+        <span 
+          className="text-white tracking-[0.15em] text-[17px] select-none flex items-center drop-shadow-sm mt-0.5"
+          style={{ fontFamily: "'Michroma', sans-serif" }}
+        >
+          NEXA
         </span>
       )}
     </div>
   );
 };
+
+export const ZeroworkLogo = NexaLogo;
+

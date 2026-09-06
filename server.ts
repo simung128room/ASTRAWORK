@@ -167,8 +167,26 @@ function verifyApiAccess(req: express.Request, res: express.Response, next: expr
 
 // Model Whitelist to prevent unauthorized model injection
 const ALLOWED_MODELS = new Set([
+  "NEXA",
+  "NEXA-Unified",
+  "NEXA-One",
+  "NEXA-Reason",
+  "NEXA-xKiro",
+  "NEXA-Pro",
+  "qwen/qwen3.8-max:free",
+  "deepseek/deepseek-v4-flash",
+  "deepseek/deepseek-v4-pro",
+  "minimax/minimax-m3:free",
+  "mistralai/mistral-medium-3.5",
+  "mistralai/mistral-large-2512",
+  "openai/gpt-5.3-codex-spark",
+  "xkiro",
+  "xkiro-deepseek",
+  "deepseek",
   "Z one",
   "Z-One",
+  "gemini-3.8-flash",
+  "gemini-flash-latest",
   "gemini-3.6-flash",
   "gemini-3.1-pro-preview",
   "gemini-search",
@@ -199,11 +217,13 @@ function getGoogleAi(): GoogleGenAI | null {
 const XKIRO_BASE_URL = "https://api.xkiro.com/v1";
 
 const XKIRO_MODELS = {
-  FLASH_PLANNER: "deepseek/deepseek-v4-flash",
-  PRO_REASONING: "deepseek/deepseek-v4-pro",
-  LARGE_SYNTHESIS: "mistralai/mistral-large-2512",
-  GENERAL_BASE: "qwen/qwen3.8-max:free",
-  VISION_IMAGE: "minimax/minimax-m3",
+  QWEN_MAX: "qwen/qwen3.8-max:free",
+  DEEPSEEK_V4_FLASH: "deepseek/deepseek-v4-flash",
+  DEEPSEEK_V4_PRO: "deepseek/deepseek-v4-pro",
+  MINIMAX_M3: "minimax/minimax-m3:free",
+  MISTRAL_MEDIUM: "mistralai/mistral-medium-3.5",
+  MISTRAL_LARGE: "mistralai/mistral-large-2512",
+  GPT_53_CODEX: "openai/gpt-5.3-codex-spark",
 };
 
 function getXkiroClient(): OpenAI | null {
@@ -215,6 +235,7 @@ function getXkiroClient(): OpenAI | null {
   return new OpenAI({
     baseURL: XKIRO_BASE_URL,
     apiKey,
+    timeout: 15000,
   });
 }
 
@@ -222,7 +243,7 @@ function getXkiroClient(): OpenAI | null {
 app.get("/api/health", generalApiLimiter, (req, res) => {
   res.json({
     status: "ok",
-    service: "ZEROWORK Z-One",
+    service: "NEXA",
     timestamp: new Date().toISOString(),
   });
 });
@@ -240,8 +261,8 @@ app.post("/api/auto-debug", autoDebugLimiter, verifyApiAccess, async (req, res) 
   const safeLang = typeof language === "string" ? language.slice(0, 50).replace(/[^a-zA-Z0-9_-]/g, "") : "typescript";
 
   const ai = getGoogleAi();
-  const prompt = `คุณคือ Agent อัตโนมัติในการวิเคราะห์แก้บั๊ก (Auto-Debug Agent)
-โปรดแก้ไขโค้ดต่อไปนี้และอธิบายทางแก้สั้นๆ
+  const prompt = `คุณคือ NEXA Auto-Debug Intelligence Agent ที่มีความเชี่ยวชาญด้านการวิเคราะห์โค้ดขั้นสูง
+โปรดวิเคราะห์สาเหตุของบั๊ก แก้ไขโค้ดให้ถูกต้อง และอธิบายทางแก้สั้นๆ
 
 ภาษา: ${safeLang}
 ข้อผิดพลาด/คำขอ: ${safeError}
@@ -253,25 +274,34 @@ ${safeCode}
 
 ส่งคืนผลลัพธ์ในรูปแบบ JSON ดังนี้เท่านั้น (ไม่มีข้อความอื่นนอกเหนือจาก JSON):
 {
-  "fixedCode": "โค้ดที่แก้ไขเรียบร้อยแล้ว",
+  "fixedCode": "โค้ดที่แก้ไขเรียบร้อยแล้วและปลอดภัย",
   "explanation": "คำอธิบายการแก้ไข 1-2 ประโยค"
 }`;
 
   try {
     let rawText = "";
     if (ai) {
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: prompt,
-      });
-      rawText = response.text || "";
+      let response: any = null;
+      const debugModels = ["gemini-flash-latest", "gemini-3.1-flash-lite", "gemini-3.8-flash"];
+      for (const m of debugModels) {
+        try {
+          response = await ai.models.generateContent({
+            model: m,
+            contents: prompt,
+          });
+          if (response?.text) break;
+        } catch {
+          continue;
+        }
+      }
+      rawText = response?.text || "";
     } else {
       const xkiro = getXkiroClient();
       if (!xkiro) {
         throw new Error("AI provider configuration unavailable");
       }
       const response = await xkiro.chat.completions.create({
-        model: XKIRO_MODELS.PRO_REASONING,
+        model: XKIRO_MODELS.DEEPSEEK_V4_PRO,
         messages: [{ role: "user", content: prompt }],
       });
       rawText = response.choices?.[0]?.message?.content || "";
@@ -303,7 +333,7 @@ app.post("/api/chat", chatRateLimiter, verifyApiAccess, async (req, res) => {
     customSystemPrompt,
     systemInstruction,
     temperature = 0.7,
-    model = "Z one",
+    model = "NEXA",
     stream = true,
   } = req.body;
 
@@ -311,8 +341,8 @@ app.post("/api/chat", chatRateLimiter, verifyApiAccess, async (req, res) => {
   const userText = typeof message === "string" ? message.trim().slice(0, 15000) : "";
 
   // 2. Validate requested model against whitelist
-  const candidateModel = typeof model === "string" ? model.trim() : "Z one";
-  const requestedModel = ALLOWED_MODELS.has(candidateModel) ? candidateModel : "Z one";
+  const candidateModel = typeof model === "string" ? model.trim() : "NEXA";
+  const requestedModel = ALLOWED_MODELS.has(candidateModel) ? candidateModel : "NEXA";
 
   // 3. Clamp temperature within safe boundaries [0.0, 1.0]
   const safeTemperature =
@@ -328,35 +358,27 @@ app.post("/api/chat", chatRateLimiter, verifyApiAccess, async (req, res) => {
       ? systemInstruction.slice(0, 2000)
       : null;
 
-  const CORE_INSTRUCTION = `คุณคือ "ZEROWORK Z-One" (Z one) — ซูเปอร์ AI Omni Autonomous Super-Intelligence รุ่นอัปเกรดสูงสุด ออกแบบมาเพื่อความเป็นเลิศในการเขียนโปรแกรม, สถาปัตยกรรมระบบ, การวิเคราะห์ตรรกะเชิงลึก, และการทำงานอัตโนมัติแบบไร้รอยต่อ
-
-คุณสมบัติและพฤติกรรมหลักของ Z-One:
-1. Direct Action & Zero Placeholders: เขียนคำตอบและโค้ดตัวเต็มระดับ Production พร้อมใช้งาน 100% ตอบให้ตรงประเด็นและครบถ้วนทันที
-2. Deep Multi-Step Reasoning: คิดวิเคราะห์เชิงลึกอย่างเป็นระบบ หากเป็นปัญหาที่ซับซ้อนให้แสดงกระบวนการคิดในแท็ก <thinking>...</thinking>
-3. Interactive Choice Sheets (เมื่อจำเป็นจริง ๆ เท่านั้น): ไม่ต้องใส่ตัวเลือกหรือแผ่นคำถามบ่อย หากไม่ใช่กรณีที่ผู้ใช้ขอทางเลือกหรือจำเป็นต้องตัดสินใจสถาปัตยกรรมสำคัญจริง ๆ ให้เน้นตอบข้อสรุปที่สมบูรณ์ทันที
-4. Real-time Web Grounding: ค้นหาข้อมูลเชิงลึกและไลบรารีเวอร์ชันล่าสุดได้อย่างแม่นยำ
-5. Universal Full-Stack Master: เชี่ยวชาญ TypeScript, React, Node.js, Python, Rust, Go, SQL, Docker, Kubernetes, CI/CD, และ Cloud Infrastructure
-
-ตอบด้วยภาษาไทยที่สุภาพ เป็นมืออาชีพ ชัดเจน ตรงประเด็น และเฉียบคมทางเทคนิคเสมอ`;
+  const CORE_INSTRUCTION = ``;
 
   const baseInstruction = safeCustomPrompt
     ? `${CORE_INSTRUCTION}\n\n[ข้อกำหนดและบริบทเฉพาะที่ผู้ใช้ตั้งค่าไว้]:\n${safeCustomPrompt}`
     : CORE_INSTRUCTION;
 
-  const isGeminiRequested =
-    requestedModel === "Z one" ||
-    requestedModel === "Z-One" ||
-    requestedModel.startsWith("gemini-") ||
-    requestedModel.startsWith("JOM-AGENT");
-
+  // Detect query attributes for optimal cluster routing
   const isSearchGrounded =
     requestedModel === "JOM-AGENT-SEARCH" ||
     requestedModel === "gemini-search" ||
     (/(ค้นหา|ล่าสุด|ข่าว|อัปเดต|เวอร์ชัน|doc|library|latest|search|price|news|weather)/i.test(userText));
 
-  const googleAi = getGoogleAi();
+  const isCodingOrTech =
+    /(โค้ด|เขียนโปรแกรม|เขียนโค้ด|ฟังก์ชัน|function|class|api|script|sql|react|vue|angular|node|python|typescript|javascript|golang|rust|docker|bug|debug|error|algorithm|database|html|css|tailwind|แก้บั๊ก|refactor|component|terminal|command)/i.test(
+      userText
+    );
 
-  // 6. Validate and sanitize conversation history (anti-spoofing and memory protection)
+  const googleAi = getGoogleAi();
+  const xkiroClient = getXkiroClient();
+
+  // Validate and sanitize conversation history
   const validatedHistory: Array<{ role: "user" | "model" | "assistant"; content: string }> = [];
   if (Array.isArray(history)) {
     const recentHistory = history.slice(-20);
@@ -372,158 +394,56 @@ app.post("/api/chat", chatRateLimiter, verifyApiAccess, async (req, res) => {
     }
   }
 
-  // 7. Validate attachments (limit count and payload size)
+  // Validate attachments
   const safeAttachments = Array.isArray(attachments) ? attachments.slice(0, 5) : [];
 
-  // Route to Google Native GenAI SDK when available and requested
-  if (googleAi && isGeminiRequested) {
-    try {
-      let targetGeminiModel = "gemini-3.6-flash";
-      if (requestedModel === "gemini-3.1-pro-preview" || requestedModel === "JOM-AGENT-REASON") {
-        targetGeminiModel = "gemini-3.1-pro-preview";
-      }
+  // Build Gemini Contents
+  const geminiContents: any[] = [];
+  for (const item of validatedHistory) {
+    geminiContents.push({
+      role: item.role === "model" ? "model" : "user",
+      parts: [{ text: item.content }],
+    });
+  }
 
-      // Build Gemini contents array
-      const geminiContents: any[] = [];
-
-      // Add validated history
-      for (const item of validatedHistory) {
-        geminiContents.push({
-          role: item.role === "model" ? "model" : "user",
-          parts: [{ text: item.content }],
+  const currentGeminiParts: any[] = [];
+  let geminiTextContent = userText;
+  for (const att of safeAttachments) {
+    if (
+      att.isImage &&
+      typeof att.dataUrl === "string" &&
+      att.dataUrl.startsWith("data:image/") &&
+      att.dataUrl.length < 5000000
+    ) {
+      const splitData = att.dataUrl.split(",");
+      if (splitData.length === 2) {
+        const base64Data = splitData[1];
+        const mimeType = splitData[0].split(";")[0].split(":")[1] || "image/jpeg";
+        currentGeminiParts.push({
+          inlineData: { mimeType, data: base64Data },
         });
       }
-
-      // Current User Message + Attachments
-      const currentParts: any[] = [];
-
-      let textContent = userText;
-      for (const att of safeAttachments) {
-        if (att.isImage && typeof att.dataUrl === "string" && att.dataUrl.startsWith("data:image/") && att.dataUrl.length < 5000000) {
-          const splitData = att.dataUrl.split(",");
-          if (splitData.length === 2) {
-            const base64Data = splitData[1];
-            const mimeType = splitData[0].split(";")[0].split(":")[1] || "image/jpeg";
-            currentParts.push({
-              inlineData: { mimeType, data: base64Data },
-            });
-          }
-        } else if (typeof att.content === "string") {
-          const safeFileName = String(att.name || "attachment").slice(0, 100).replace(/[<>]/g, "");
-          textContent += `\n\n--- ไฟล์แนบ: ${safeFileName} ---\n${att.content.slice(0, 15000)}`;
-        }
-      }
-
-      if (textContent) {
-        currentParts.push({ text: textContent });
-      }
-
-      if (currentParts.length > 0) {
-        geminiContents.push({ role: "user", parts: currentParts });
-      }
-
-      if (stream) {
-        let responseStream;
-        try {
-          responseStream = await googleAi.models.generateContentStream({
-            model: targetGeminiModel,
-            contents: geminiContents,
-            config: {
-              systemInstruction: baseInstruction,
-              temperature: safeTemperature,
-              tools: isSearchGrounded ? [{ googleSearch: {} }] : undefined,
-            },
-          });
-        } catch (streamInitErr: any) {
-          if (targetGeminiModel !== "gemini-3.6-flash") {
-            console.warn(`Gemini ${targetGeminiModel} failed, trying gemini-3.6-flash:`, streamInitErr?.message || streamInitErr);
-            targetGeminiModel = "gemini-3.6-flash";
-            responseStream = await googleAi.models.generateContentStream({
-              model: targetGeminiModel,
-              contents: geminiContents,
-              config: {
-                systemInstruction: baseInstruction,
-                temperature: safeTemperature,
-                tools: isSearchGrounded ? [{ googleSearch: {} }] : undefined,
-              },
-            });
-          } else {
-            throw streamInitErr;
-          }
-        }
-
-        if (!res.headersSent) {
-          res.setHeader("Content-Type", "text/event-stream");
-          res.setHeader("Cache-Control", "no-cache");
-          res.setHeader("Connection", "keep-alive");
-          res.flushHeaders();
-        }
-
-        for await (const chunk of responseStream) {
-          if (chunk.text) {
-            res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
-          }
-        }
-
-        res.write("data: [DONE]\n\n");
-        return res.end();
-      } else {
-        let response;
-        try {
-          response = await googleAi.models.generateContent({
-            model: targetGeminiModel,
-            contents: geminiContents,
-            config: {
-              systemInstruction: baseInstruction,
-              temperature: safeTemperature,
-              tools: isSearchGrounded ? [{ googleSearch: {} }] : undefined,
-            },
-          });
-        } catch (genErr: any) {
-          if (targetGeminiModel !== "gemini-3.6-flash") {
-            targetGeminiModel = "gemini-3.6-flash";
-            response = await googleAi.models.generateContent({
-              model: targetGeminiModel,
-              contents: geminiContents,
-              config: {
-                systemInstruction: baseInstruction,
-                temperature: safeTemperature,
-                tools: isSearchGrounded ? [{ googleSearch: {} }] : undefined,
-              },
-            });
-          } else {
-            throw genErr;
-          }
-        }
-
-        return res.json({ text: response.text, model: targetGeminiModel });
-      }
-    } catch (geminiErr: any) {
-      console.error("GoogleGenAI execution error:", sanitizeErrorMessage(geminiErr));
-      if (res.headersSent) {
-        res.write(`data: ${JSON.stringify({ error: "เกิดข้อผิดพลาดในการสตรีมข้อมูล กรุณาลองใหม่อีกครั้ง" })}\n\n`);
-        res.write("data: [DONE]\n\n");
-        return res.end();
-      }
+    } else if (typeof att.content === "string") {
+      const name = String(att.name || "attachment").slice(0, 100).replace(/[<>]/g, "");
+      const ext = String(att.extension || "").slice(0, 10).replace(/[^a-zA-Z0-9]/g, "");
+      const content = String(att.content).slice(0, 15000);
+      geminiTextContent += `\n\n--- ไฟล์แนบ: ${name} ---\n\`\`\`${ext}\n${content}\n\`\`\``;
     }
   }
-
-  // Fallback to xKiro Multi-Specialist Cluster if configured
-  const client = getXkiroClient();
-  if (!client) {
-    if (!res.headersSent) {
-      return res.status(500).json({ error: "ระบบ AI กำลังเตรียมความพร้อม กรุณาลองใหม่อีกครั้งในสักครู่" });
-    } else {
-      res.write(`data: ${JSON.stringify({ error: "ระบบ AI กำลังเตรียมความพร้อม กรุณาลองใหม่อีกครั้งในสักครู่" })}\n\n`);
-      res.write("data: [DONE]\n\n");
-      return res.end();
-    }
+  if (geminiTextContent) {
+    currentGeminiParts.push({ text: geminiTextContent });
+  } else if (currentGeminiParts.length > 0) {
+    currentGeminiParts.push({ text: "อธิบายภาพนี้อย่างละเอียด" });
   }
+  geminiContents.push({
+    role: "user",
+    parts: currentGeminiParts,
+  });
 
+  // Build OpenAI Messages
   const openAiMessages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> = [
     { role: "system", content: baseInstruction },
   ];
-
   for (const item of validatedHistory) {
     openAiMessages.push({
       role: item.role === "model" ? "assistant" : "user",
@@ -531,9 +451,8 @@ app.post("/api/chat", chatRateLimiter, verifyApiAccess, async (req, res) => {
     });
   }
 
-  let fullUserText = userText;
+  let fullOpenAiText = userText;
   const textAttachments = safeAttachments.filter((a: any) => !a.isImage && a.content);
-
   if (textAttachments.length > 0) {
     const textContent = textAttachments
       .map((att: any) => {
@@ -542,30 +461,118 @@ app.post("/api/chat", chatRateLimiter, verifyApiAccess, async (req, res) => {
         return `\n\n--- ไฟล์แนบ: ${name} ---\n\`\`\`${ext}\n${String(att.content).slice(0, 15000)}\n\`\`\``;
       })
       .join("\n");
-    fullUserText = fullUserText ? `${fullUserText}\n${textContent}` : textContent;
+    fullOpenAiText = fullOpenAiText ? `${fullOpenAiText}\n${textContent}` : textContent;
   }
 
   const hasImageAttachments = safeAttachments.some(
-    (a: any) => a.isImage && typeof a.dataUrl === "string" && a.dataUrl.startsWith("data:image/") && a.dataUrl.length < 5000000
+    (a: any) =>
+      a.isImage &&
+      typeof a.dataUrl === "string" &&
+      a.dataUrl.startsWith("data:image/") &&
+      a.dataUrl.length < 5000000
   );
 
-  let primarySpecialist = XKIRO_MODELS.PRO_REASONING;
-  if (hasImageAttachments) primarySpecialist = XKIRO_MODELS.VISION_IMAGE;
-
   if (hasImageAttachments) {
-    const userContentArray: any[] = [{ type: "text", text: fullUserText || "วิเคราะห์ภาพถ่ายนี้อย่างละเอียด" }];
+    const userContentArray: any[] = [{ type: "text", text: fullOpenAiText || "วิเคราะห์ภาพถ่ายนี้อย่างละเอียด" }];
     for (const att of safeAttachments) {
       if (att.isImage && typeof att.dataUrl === "string" && att.dataUrl.startsWith("data:image/")) {
         userContentArray.push({ type: "image_url", image_url: { url: att.dataUrl } });
       }
     }
     openAiMessages.push({ role: "user", content: userContentArray as any });
-  } else if (fullUserText) {
-    openAiMessages.push({ role: "user", content: fullUserText });
+  } else if (fullOpenAiText) {
+    openAiMessages.push({ role: "user", content: fullOpenAiText });
+  }
+
+  // Unified NEXA Hyper-Cluster Prioritized Candidates Sequence
+  const candidateChain: Array<{ type: "xkiro" | "gemini"; model: string }> = [];
+
+  if (hasImageAttachments) {
+    if (googleAi) {
+      candidateChain.push({ type: "gemini", model: "gemini-2.5-flash" });
+    }
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.MINIMAX_M3 });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.DEEPSEEK_V4_PRO });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.QWEN_MAX });
+  } else if (isSearchGrounded) {
+    if (googleAi) {
+      candidateChain.push({ type: "gemini", model: "gemini-2.5-flash" });
+    }
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.QWEN_MAX });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.MISTRAL_LARGE });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.DEEPSEEK_V4_PRO });
+  } else if (isCodingOrTech) {
+    // Coding powerhouse priority: DeepSeek V4 Pro #1 -> Qwen 3.8 Max -> DeepSeek Flash -> Mistral Large -> Minimax
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.DEEPSEEK_V4_PRO });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.QWEN_MAX });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.DEEPSEEK_V4_FLASH });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.MISTRAL_LARGE });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.MINIMAX_M3 });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.MISTRAL_MEDIUM });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.GPT_53_CODEX });
+    if (googleAi) {
+      candidateChain.push({ type: "gemini", model: "gemini-2.5-flash" });
+    }
+  } else {
+    // General everyday & reasoning priority: Qwen 3.8 Max #1 -> DeepSeek V4 Pro -> Mistral Large -> Minimax -> DeepSeek Flash
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.QWEN_MAX });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.DEEPSEEK_V4_PRO });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.MISTRAL_LARGE });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.MINIMAX_M3 });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.DEEPSEEK_V4_FLASH });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.MISTRAL_MEDIUM });
+    candidateChain.push({ type: "xkiro", model: XKIRO_MODELS.GPT_53_CODEX });
+    if (googleAi) {
+      candidateChain.push({ type: "gemini", model: "gemini-2.5-flash" });
+    }
   }
 
   try {
     if (stream) {
+      let activeStream: any = null;
+      let activeType: "gemini" | "xkiro" = "xkiro";
+      let lastErr: any = null;
+
+      // Cascade through candidate models until an active stream is acquired
+      for (const candidate of candidateChain) {
+        try {
+          if (candidate.type === "gemini") {
+            if (!googleAi) continue;
+            const s = await googleAi.models.generateContentStream({
+              model: candidate.model,
+              contents: geminiContents,
+              config: {
+                systemInstruction: baseInstruction,
+                temperature: safeTemperature,
+                tools: isSearchGrounded ? [{ googleSearch: {} }] : undefined,
+              },
+            });
+            activeStream = s;
+            activeType = "gemini";
+            break;
+          } else {
+            if (!xkiroClient) continue;
+            const s = await xkiroClient.chat.completions.create({
+              model: candidate.model,
+              messages: openAiMessages,
+              temperature: safeTemperature,
+              stream: true,
+            });
+            activeStream = s;
+            activeType = "xkiro";
+            break;
+          }
+        } catch (err: any) {
+          lastErr = err;
+          console.warn(`[NEXA Unified Engine] ${candidate.model} (${candidate.type}) startup error, cascading...`);
+          continue;
+        }
+      }
+
+      if (!activeStream) {
+        throw lastErr || new Error("ระบบ AI ในคลัสเตอร์ NEXA กำลังเตรียมความพร้อม กรุณาลองใหม่อีกครั้ง");
+      }
+
       if (!res.headersSent) {
         res.setHeader("Content-Type", "text/event-stream");
         res.setHeader("Cache-Control", "no-cache");
@@ -573,36 +580,96 @@ app.post("/api/chat", chatRateLimiter, verifyApiAccess, async (req, res) => {
         res.flushHeaders();
       }
 
-      const responseStream = await client.chat.completions.create({
-        model: primarySpecialist,
-        messages: openAiMessages,
-        temperature: safeTemperature,
-        stream: true,
-      });
-
-      for await (const chunk of responseStream) {
-        const delta = chunk.choices?.[0]?.delta?.content || "";
-        if (delta) {
-          res.write(`data: ${JSON.stringify({ text: delta })}\n\n`);
+      if (activeType === "gemini") {
+        for await (const chunk of activeStream) {
+          let chunkData: any = {};
+          if (chunk.text) {
+            chunkData.text = chunk.text;
+          }
+          // Extract Grounding metadata / search sources if available
+          const groundingMetadata = chunk.candidates?.[0]?.groundingMetadata;
+          if (groundingMetadata?.groundingChunks?.length > 0) {
+            const sources = groundingMetadata.groundingChunks
+              .filter((c: any) => c.web?.uri && c.web?.title)
+              .map((c: any) => ({
+                title: c.web.title,
+                url: c.web.uri,
+              }));
+            
+            if (sources.length > 0) {
+              chunkData.searchSources = sources;
+            }
+          }
+          if (Object.keys(chunkData).length > 0) {
+            res.write(`data: ${JSON.stringify(chunkData)}\n\n`);
+          }
+        }
+      } else {
+        for await (const chunk of activeStream) {
+          const delta = chunk.choices?.[0]?.delta?.content || "";
+          if (delta) {
+            res.write(`data: ${JSON.stringify({ text: delta })}\n\n`);
+          }
         }
       }
 
       res.write("data: [DONE]\n\n");
       return res.end();
     } else {
-      const response = await client.chat.completions.create({
-        model: primarySpecialist,
-        messages: openAiMessages,
-        temperature: safeTemperature,
-      });
+      let lastErr: any = null;
 
-      return res.json({
-        text: response.choices?.[0]?.message?.content || "",
-        model: primarySpecialist,
-      });
+      for (const candidate of candidateChain) {
+        try {
+          if (candidate.type === "gemini") {
+            if (!googleAi) continue;
+            const genRes = await googleAi.models.generateContent({
+              model: candidate.model,
+              contents: geminiContents,
+              config: {
+                systemInstruction: baseInstruction,
+                temperature: safeTemperature,
+                tools: isSearchGrounded ? [{ googleSearch: {} }] : undefined,
+              },
+            });
+            if (genRes?.text) {
+              let responseObj: any = { text: genRes.text, model: "NEXA" };
+              const groundingMetadata = genRes.candidates?.[0]?.groundingMetadata;
+              if (groundingMetadata?.groundingChunks?.length > 0) {
+                const sources = groundingMetadata.groundingChunks
+                  .filter((c: any) => c.web?.uri && c.web?.title)
+                  .map((c: any) => ({
+                    title: c.web.title,
+                    url: c.web.uri,
+                  }));
+                if (sources.length > 0) {
+                  responseObj.searchSources = sources;
+                }
+              }
+              return res.json(responseObj);
+            }
+          } else {
+            if (!xkiroClient) continue;
+            const compRes = await xkiroClient.chat.completions.create({
+              model: candidate.model,
+              messages: openAiMessages,
+              temperature: safeTemperature,
+            });
+            const text = compRes.choices?.[0]?.message?.content;
+            if (text) {
+              return res.json({ text, model: "NEXA" });
+            }
+          }
+        } catch (err: any) {
+          lastErr = err;
+          console.warn(`[NEXA Unified Engine] ${candidate.model} failed, cascading...`);
+          continue;
+        }
+      }
+
+      throw lastErr || new Error("Failed to generate response across all models in NEXA cluster");
     }
   } catch (err: any) {
-    console.error("xKiro processing error:", sanitizeErrorMessage(err));
+    console.error("NEXA Unified Engine processing error:", sanitizeErrorMessage(err));
     if (!res.headersSent) {
       return res.status(500).json({ error: "เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง" });
     } else {
@@ -637,7 +704,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`ZEROWORK Z-One Server running on http://localhost:${PORT}`);
+    console.log(`NEXA Server running on http://localhost:${PORT}`);
   });
 }
 

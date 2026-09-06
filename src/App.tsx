@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ChatSession, Message, SystemPersona, ZenThemeId, FileAttachment } from "./types";
-import { SYSTEM_PERSONAS, ZEN_THEMES } from "./data/presets";
+import { ChatSession, Message, ZenThemeId, FileAttachment } from "./types";
+import { ZEN_THEMES } from "./data/presets";
 import { Sidebar } from "./components/Sidebar";
 import { ChatMessage, extractThinkingMainAndQuestion } from "./components/ChatMessage";
 import { ChatInput } from "./components/ChatInput";
@@ -21,8 +21,7 @@ const DEFAULT_SESSION: ChatSession = {
   createdAt: Date.now(),
   updatedAt: Date.now(),
   messages: [],
-  personaId: "zen-coder",
-  model: "Z one",
+  model: "NEXA",
   temperature: 0.7,
   scratchpadCode: `// กระดานทดลองโค้ด - ทดสอบโค้ดของคุณที่นี่\nfunction add(a: number, b: number): number {\n  return a + b;\n}\n\nconsole.log(add(10, 25));`,
   scratchpadLang: "typescript",
@@ -38,7 +37,7 @@ export default function App() {
     return "geometric-balance";
   });
 
-  // Sessions State (Default to Z one Autonomous Intelligence)
+  // Sessions State (Default to NEXA Super-Intelligence)
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -48,7 +47,7 @@ export default function App() {
           if (Array.isArray(parsed) && parsed.length > 0) {
             return parsed.map((s: ChatSession) => ({
               ...s,
-              model: s.model?.includes("Z") || s.model?.includes("z") || s.model?.includes("JOM") ? "Z one" : (s.model || "Z one"),
+              model: s.model?.includes("Z") || s.model?.includes("z") || s.model?.includes("JOM") || !s.model ? "NEXA" : s.model,
             }));
           }
         }
@@ -91,7 +90,6 @@ export default function App() {
 
   // Active session helper
   const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0] || DEFAULT_SESSION;
-  const selectedPersona = SYSTEM_PERSONAS.find((p) => p.id === activeSession.personaId) || SYSTEM_PERSONAS[0];
 
   // Active question extracted from the latest assistant message (Claude style)
   const latestMessage = activeSession.messages[activeSession.messages.length - 1];
@@ -225,7 +223,7 @@ export default function App() {
       role: "assistant",
       content: "",
       timestamp: Date.now(),
-      model: activeSession.model || "Z one",
+      model: activeSession.model || "NEXA",
       isStreaming: true,
     };
 
@@ -273,8 +271,7 @@ export default function App() {
           message: apiPrompt,
           attachments: attachments,
           history: historyPayload,
-          personaId: activeSession.personaId || "zen-coder",
-          model: activeSession.model || "Z one",
+          model: activeSession.model || "NEXA",
           temperature: activeSession.temperature ?? 0.7,
           customSystemPrompt: activeSession.customSystemPrompt,
         }),
@@ -455,9 +452,8 @@ export default function App() {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       messages: [],
-      personaId: selectedPersona.id,
-      model: "Z one",
-      temperature: selectedPersona.suggestedTemperature,
+      model: "NEXA",
+      temperature: 0.7,
       scratchpadCode: activeSession.scratchpadCode || "",
       scratchpadLang: activeSession.scratchpadLang || "typescript",
     };
@@ -577,9 +573,8 @@ export default function App() {
                     }))
                 : [],
               updatedAt: typeof s.updatedAt === "number" ? s.updatedAt : Date.now(),
-              model: typeof s.model === "string" ? s.model : "Z one",
+              model: typeof s.model === "string" ? s.model : "NEXA",
               isPinned: Boolean(s.isPinned),
-              personaId: typeof s.personaId === "string" ? s.personaId : "zen-master",
               temperature: typeof s.temperature === "number" ? s.temperature : 0.7,
               customSystemPrompt: typeof s.customSystemPrompt === "string" ? s.customSystemPrompt : undefined,
               scratchpadCode: typeof s.scratchpadCode === "string" ? s.scratchpadCode : undefined,
@@ -633,16 +628,6 @@ export default function App() {
           onTogglePinSession={handleTogglePinSession}
           currentTheme={currentTheme}
           onSelectTheme={setThemeId}
-          selectedPersona={selectedPersona}
-          onSelectPersona={(persona) => {
-            setSessions((prev) =>
-              prev.map((s) =>
-                s.id === activeSession.id
-                  ? { ...s, personaId: persona.id, temperature: persona.suggestedTemperature }
-                  : s
-              )
-            );
-          }}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onExportAll={handleExportJSON}
           onImport={handleImportJSON}
@@ -691,9 +676,8 @@ export default function App() {
                 theme={currentTheme}
                 isFocusMode={isFocusMode}
                 onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
-                selectedPersonaName={selectedPersona.name}
                 isHeroMode={true}
-                currentModelId={activeSession.model || "JOM-AGENT"}
+                currentModelId={activeSession.model || "NEXA"}
                 onSelectModel={(model) => {
                   setSessions((prev) =>
                     prev.map((s) => (s.id === activeSession.id ? { ...s, model } : s))
@@ -769,9 +753,8 @@ export default function App() {
                       theme={currentTheme}
                       isFocusMode={isFocusMode}
                       onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
-                      selectedPersonaName={selectedPersona.name}
                       isHeroMode={false}
-                      currentModelId={activeSession.model || "JOM-AGENT"}
+                      currentModelId={activeSession.model || "NEXA"}
                       onSelectModel={(model) => {
                         setSessions((prev) =>
                           prev.map((s) => (s.id === activeSession.id ? { ...s, model } : s))

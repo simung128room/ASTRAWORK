@@ -10,7 +10,7 @@ import {
   X,
   UploadCloud,
   Check,
-  AlertTriangle
+  AlertTriangle, Globe
 } from "lucide-react";
 import { FileAttachment, ZenThemeConfig } from "../types";
 import { JOM_MODELS } from "../data/presets";
@@ -27,7 +27,6 @@ interface ChatInputProps {
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
   onClearChat?: () => void;
-  selectedPersonaName?: string;
   isHeroMode?: boolean;
   currentModelId?: string;
   onSelectModel?: (modelId: string) => void;
@@ -59,6 +58,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [isDeepThinking, setIsDeepThinking] = useState(false);
+  const [isWebSearch, setIsWebSearch] = useState(false);
   const [fileErrorWarning, setFileErrorWarning] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -132,6 +132,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     let finalText = input.trim();
     if (isDeepThinking) {
       finalText = `[โหมด: คิดให้รอบคอบขึ้น (Deep Reasoning)]\n${finalText}`;
+    }
+    if (isWebSearch) {
+      finalText = `[โหมด: ค้นหาเว็บ (Web Search)]\n${finalText}`;
     }
 
     onSendMessage(finalText, attachments);
@@ -387,24 +390,48 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       </AnimatePresence>
 
       {/* Active Thinking Mode Chip */}
-      {isDeepThinking && (
-        <motion.div 
-          initial={{ opacity: 0, y: 4, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.9 }}
-          className="flex items-center gap-1.5 px-3 py-1.5 mb-2 rounded-full bg-zinc-800/90 border border-purple-500/40 text-purple-200 text-xs w-fit font-thai shadow-md"
-        >
-          <Brain className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-          <span className="font-medium text-[12.5px]">คิดให้รอบคอบขึ้น (Deep Reasoning)</span>
-          <button
-            type="button"
-            onClick={() => setIsDeepThinking(false)}
-            className="ml-1 p-0.5 hover:bg-zinc-700 rounded-full text-zinc-400 hover:text-zinc-200 cursor-pointer"
-            title="ปิดโหมดคิดรอบคอบ"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        </motion.div>
+      {(isDeepThinking || isWebSearch) && (
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          {isDeepThinking && (
+            <motion.div 
+              initial={{ opacity: 0, y: 4, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-800/90 border border-purple-500/40 text-purple-200 text-xs w-fit font-thai shadow-md"
+            >
+              <Brain className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+              <span className="font-medium text-[12.5px]">คิดให้รอบคอบขึ้น (Deep Reasoning)</span>
+              <button
+                type="button"
+                onClick={() => setIsDeepThinking(false)}
+                className="ml-1 p-0.5 hover:bg-zinc-700 rounded-full text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                title="ปิดโหมดคิดรอบคอบ"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </motion.div>
+          )}
+
+          {isWebSearch && (
+            <motion.div 
+              initial={{ opacity: 0, y: 4, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-800/90 border border-blue-500/40 text-blue-200 text-xs w-fit font-thai shadow-md"
+            >
+              <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="font-medium text-[12.5px]">ค้นหาเว็บ (Web Search)</span>
+              <button
+                type="button"
+                onClick={() => setIsWebSearch(false)}
+                className="ml-1 p-0.5 hover:bg-zinc-700 rounded-full text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                title="ปิดค้นหาเว็บ"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </motion.div>
+          )}
+        </div>
       )}
 
       {/* File Size / Count Safety Warning Banner */}
@@ -572,6 +599,35 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   <Check className="w-4 h-4 text-purple-400 mr-1" />
                 )}
               </button>
+
+              {/* 5. ค้นหาเว็บ */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsWebSearch(!isWebSearch);
+                  setIsPlusMenuOpen(false);
+                  zenAudio.playSoftClick();
+                }}
+                className="w-full flex items-center justify-between py-2.5 px-3 rounded-2xl hover:bg-zinc-800/70 active:bg-zinc-800 transition-colors text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors shadow-xs ${
+                      isWebSearch
+                        ? "bg-blue-600 text-white"
+                        : "bg-zinc-800/90 group-hover:bg-zinc-700 text-zinc-100"
+                    }`}
+                  >
+                    <Globe className="w-5 h-5 stroke-[1.8]" />
+                  </div>
+                  <span className="text-[15.5px] font-thai font-medium text-zinc-100 tracking-tight">
+                    ค้นหาเว็บ
+                  </span>
+                </div>
+                {isWebSearch && (
+                  <Check className="w-4 h-4 text-blue-400 mr-1" />
+                )}
+              </button>
             </div>
           </motion.div>
         )}
@@ -594,9 +650,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               setIsPlusMenuOpen(!isPlusMenuOpen);
               zenAudio.playSoftClick();
             }}
-            title="กล้อง, รูปภาพ, ไฟล์, คิดให้รอบคอบขึ้น"
+            title="กล้อง, รูปภาพ, ไฟล์, คิดให้รอบคอบขึ้น, ค้นหาเว็บ"
             className={`p-2 rounded-full transition-all shrink-0 cursor-pointer active:scale-95 ${
-              isPlusMenuOpen || isDeepThinking
+              isPlusMenuOpen || isDeepThinking || isWebSearch
                 ? "bg-zinc-800 text-zinc-100"
                 : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80"
             }`}
@@ -660,7 +716,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       {/* Disclaimer in Thai */}
       <div className="text-center mt-3 mb-1">
         <p className="font-thai text-[12px] text-zinc-500 font-normal">
-          จอม อาจแสดงข้อมูลคลาดเคลื่อนได้ กรุณาตรวจสอบข้อมูลสำคัญ
+          NEXA อาจแสดงข้อมูลคลาดเคลื่อนได้ กรุณาตรวจสอบข้อมูลสำคัญ
         </p>
       </div>
     </div>

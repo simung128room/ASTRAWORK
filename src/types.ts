@@ -89,7 +89,7 @@ export interface PromptPreset {
   titleTh: string;
   iconName: string;
   prompt: string;
-  category: "code" | "debug" | "refactor" | "explain" | "architecture" | "zen" | "generate";
+  category: "general" | "code" | "debug" | "refactor" | "explain" | "architecture" | "zen" | "generate";
   shortcut?: string;
 }
 
@@ -105,23 +105,12 @@ export interface JomModel {
   speed: string;
 }
 
-export interface SystemPersona {
-  id: string;
-  name: string;
-  nameTh: string;
-  tagline: string;
-  icon: string;
-  instruction: string;
-  suggestedTemperature: number;
-}
-
 export interface ChatSession {
   id: string;
   title: string;
   createdAt: number;
   updatedAt: number;
   messages: Message[];
-  personaId: string;
   model?: string;
   customSystemPrompt?: string;
   temperature: number;
