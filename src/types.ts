@@ -126,6 +126,7 @@ export interface ChatSession {
   customSystemPrompt?: string;
   temperature: number;
   pinned?: boolean;
+  isPinned?: boolean;
   scratchpadCode?: string;
   scratchpadLang?: string;
 }

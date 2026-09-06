@@ -161,8 +161,12 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [sessions]);
 
-  // Send message to Gemini
-  const handleSendMessage = async (text: string, attachments?: FileAttachment[]) => {
+  // Send message to Gemini / Model
+  const handleSendMessage = async (
+    text: string, 
+    attachments?: FileAttachment[], 
+    overrideBaseMessages?: Message[]
+  ) => {
     const cleanText = text.trim();
     if (!cleanText && (!attachments || attachments.length === 0)) return;
     if (isStreaming) return;
@@ -202,18 +206,20 @@ export default function App() {
       role: "assistant",
       content: "",
       timestamp: Date.now(),
-      model: activeSession.model || "JOM-AGENT",
+      model: activeSession.model || "Z one",
       isStreaming: true,
     };
 
+    const baseHistory = overrideBaseMessages ?? activeSession.messages;
+
     // Auto generate session title if first user message
     let updatedTitle = activeSession.title;
-    if (activeSession.messages.length === 0 || activeSession.title === "New Chat") {
-      const titleSeed = cleanText || (attachments?.[0]?.name ?? "Chat");
+    if (baseHistory.length === 0 || activeSession.title === "New Chat" || activeSession.title === "บทสนทนาใหม่") {
+      const titleSeed = cleanText || (attachments?.[0]?.name ?? "แชทใหม่");
       updatedTitle = titleSeed.slice(0, 32) + (titleSeed.length > 32 ? "..." : "");
     }
 
-    const updatedMessages = [...activeSession.messages, userMessage, assistantPlaceholder];
+    const updatedMessages = [...baseHistory, userMessage, assistantPlaceholder];
 
     setSessions((prev) =>
       prev.map((s) =>
@@ -231,8 +237,8 @@ export default function App() {
     setIsStreaming(true);
     zenAudio.playZenChime();
 
-    // Prepare API history
-    const historyPayload = activeSession.messages.map((m) => ({
+    // Prepare API history from clean base history
+    const historyPayload = baseHistory.map((m) => ({
       role: m.role,
       content: m.content,
     }));
@@ -249,7 +255,7 @@ export default function App() {
           attachments: attachments,
           history: historyPayload,
           personaId: activeSession.personaId || "zen-coder",
-          model: activeSession.model || "JOM-AGENT",
+          model: activeSession.model || "Z one",
           temperature: activeSession.temperature ?? 0.7,
           customSystemPrompt: activeSession.customSystemPrompt,
         }),
@@ -398,7 +404,7 @@ export default function App() {
     setIsStreaming(false);
   };
 
-  // Regenerate message
+  // Regenerate message (replaces the assistant message cleanly without duplication)
   const handleRegenerate = (messageId: string) => {
     const msgIndex = activeSession.messages.findIndex((m) => m.id === messageId);
     if (msgIndex <= 0) return;
@@ -406,18 +412,19 @@ export default function App() {
     const previousUserMsg = activeSession.messages[msgIndex - 1];
     if (previousUserMsg && previousUserMsg.role === "user") {
       const truncatedMessages = activeSession.messages.slice(0, msgIndex - 1);
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === activeSession.id ? { ...s, messages: truncatedMessages } : s
-        )
-      );
-      handleSendMessage(previousUserMsg.content);
+      handleSendMessage(previousUserMsg.content, previousUserMsg.attachments, truncatedMessages);
     }
   };
 
-  // Edit user message and resend
-  const handleEditAndResend = (newContent: string) => {
-    handleSendMessage(newContent);
+  // Edit user message and resend (truncates history from that point and resends)
+  const handleEditAndResend = (newContent: string, messageId?: string) => {
+    if (messageId) {
+      const msgIndex = activeSession.messages.findIndex((m) => m.id === messageId);
+      const truncated = msgIndex >= 0 ? activeSession.messages.slice(0, msgIndex) : activeSession.messages;
+      handleSendMessage(newContent, undefined, truncated);
+    } else {
+      handleSendMessage(newContent);
+    }
   };
 
   // Create new session
@@ -425,12 +432,12 @@ export default function App() {
     const newId = `session-${Date.now()}`;
     const newSession: ChatSession = {
       id: newId,
-      title: "New Chat",
+      title: "บทสนทนาใหม่",
       createdAt: Date.now(),
       updatedAt: Date.now(),
       messages: [],
       personaId: selectedPersona.id,
-      model: "z-ai/glm-5.3-free",
+      model: "Z one",
       temperature: selectedPersona.suggestedTemperature,
       scratchpadCode: activeSession.scratchpadCode || "",
       scratchpadLang: activeSession.scratchpadLang || "typescript",
@@ -765,6 +772,7 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         theme={currentTheme}
+        onSelectTheme={setThemeId}
         session={activeSession}
         onUpdateSessionSettings={(settings) => {
           setSessions((prev) =>
@@ -772,14 +780,12 @@ export default function App() {
               s.id === activeSession.id
                 ? {
                     ...s,
-                    personaId: settings.personaId,
-                    model: settings.model,
-                    temperature: settings.temperature,
-                    customSystemPrompt: settings.customSystemPrompt,
+                    ...settings,
                   }
                 : s
             )
           );
+          showToast("บันทึกการตั้งค่าแล้ว", "success");
         }}
         onExportMarkdown={handleExportMarkdown}
         onExportJSON={handleExportJSON}

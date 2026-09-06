@@ -1,242 +1,212 @@
+import { executeJsInBrowserSandbox } from "./jsEvaluator";
+import { ExecutionResult } from "../types";
+
 /**
- * Client-Side Sandboxed Python Evaluator
- * Runs exclusively in an isolated Web Worker with all network and storage APIs locked down.
- * Prevents main-thread XSS, prototype pollution, and data exfiltration.
+ * Robust Client-Side Python Sandbox Engine
+ * Translates standard Python statements, loops, conditionals, f-strings, and data structures
+ * into sandboxed JavaScript for instant, zero-latency execution.
  */
 
-export interface PythonExecutionResult {
-  output: string;
-  success: boolean;
-  error?: string;
-  executionTimeMs?: string;
+export function transpilePythonToJs(pythonCode: string): string {
+  const lines = pythonCode.split("\n");
+  const jsLines: string[] = [];
+  const indentStack: number[] = [0];
+
+  // Helper built-ins prepended to every runtime execution
+  const helperHeader = `
+    const print = (...args) => {
+      const formatted = args.map(a => {
+        if (a === null) return 'None';
+        if (a === undefined) return 'None';
+        if (typeof a === 'boolean') return a ? 'True' : 'False';
+        if (typeof a === 'object') return JSON.stringify(a);
+        return String(a);
+      }).join(' ');
+      console.log(formatted);
+    };
+    const len = (obj) => (obj && obj.length !== undefined ? obj.length : (obj ? Object.keys(obj).length : 0));
+    const range = (start, stop, step = 1) => {
+      if (stop === undefined) { stop = start; start = 0; }
+      const res = [];
+      if (step > 0) {
+        for (let i = start; i < stop; i += step) res.push(i);
+      } else if (step < 0) {
+        for (let i = start; i > stop; i += step) res.push(i);
+      }
+      return res;
+    };
+    const sum = (arr) => arr.reduce((acc, curr) => acc + curr, 0);
+    const max = (...args) => {
+      const arr = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+      return Math.max(...arr);
+    };
+    const min = (...args) => {
+      const arr = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+      return Math.min(...arr);
+    };
+    const abs = (n) => Math.abs(n);
+    const round = (n, digits = 0) => {
+      const factor = Math.pow(10, digits);
+      return Math.round(n * factor) / factor;
+    };
+    const str = (v) => (v === null || v === undefined ? 'None' : (typeof v === 'boolean' ? (v ? 'True' : 'False') : String(v)));
+    const int = (v) => parseInt(v, 10);
+    const float = (v) => parseFloat(v);
+    const bool = (v) => Boolean(v);
+    const True = true;
+    const False = false;
+    const None = null;
+  `;
+
+  // Track declared variables to avoid undeclared variable ReferenceErrors
+  const declaredVars = new Set<string>([
+    "print", "len", "range", "sum", "max", "min", "abs", "round",
+    "str", "int", "float", "bool", "True", "False", "None"
+  ]);
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const trimmed = rawLine.trim();
+
+    // Skip empty lines or pure comment lines
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    // Measure indentation (number of leading spaces or tabs)
+    const indentMatch = rawLine.match(/^(\s*)/);
+    const indent = indentMatch ? indentMatch[1].replace(/\t/g, "    ").length : 0;
+
+    // Check if this line is an elif or else
+    const isElifOrElse = /^(elif\b|else\s*:)/.test(trimmed);
+
+    // Pop indent stack and close braces
+    while (indentStack.length > 1 && indent < indentStack[indentStack.length - 1]) {
+      indentStack.pop();
+      jsLines.push("}");
+    }
+
+    // Convert f-strings: f"Hello {name}" -> `Hello ${name}`
+    let line = trimmed
+      .replace(/f"([^"]*)"/g, (_, content) => '`' + content.replace(/\{([^}]+)\}/g, '${$1}') + '`')
+      .replace(/f'([^']*)'/g, (_, content) => '`' + content.replace(/\{([^}]+)\}/g, '${$1}') + '`');
+
+    // Convert Python logical operators
+    line = line
+      .replace(/\band\b/g, "&&")
+      .replace(/\bor\b/g, "||")
+      .replace(/\bnot\b\s+/g, "!")
+      .replace(/\bTrue\b/g, "true")
+      .replace(/\bFalse\b/g, "false")
+      .replace(/\bNone\b/g, "null");
+
+    // Convert .append(x) -> .push(x)
+    line = line.replace(/\.append\s*\(/g, ".push(");
+
+    // 1. def function_name(args):
+    const defMatch = line.match(/^def\s+([a-zA-Z0-9_]+)\s*\((.*?)\)\s*:/);
+    if (defMatch) {
+      const funcName = defMatch[1];
+      const args = defMatch[2];
+      declaredVars.add(funcName);
+      jsLines.push(`function ${funcName}(${args}) {`);
+      indentStack.push(indent + 4);
+      continue;
+    }
+
+    // 2. if condition:
+    const ifMatch = line.match(/^if\s+(.*?)\s*:/);
+    if (ifMatch) {
+      const cond = ifMatch[1];
+      jsLines.push(`if (${cond}) {`);
+      indentStack.push(indent + 4);
+      continue;
+    }
+
+    // 3. elif condition:
+    const elifMatch = line.match(/^elif\s+(.*?)\s*:/);
+    if (elifMatch) {
+      const cond = elifMatch[1];
+      // Close previous block before adding else if
+      if (indentStack.length > 1 && !isElifOrElse) {
+        indentStack.pop();
+        jsLines.push("}");
+      }
+      jsLines.push(`else if (${cond}) {`);
+      indentStack.push(indent + 4);
+      continue;
+    }
+
+    // 4. else:
+    if (line === "else:" || line.startsWith("else:")) {
+      if (indentStack.length > 1 && !isElifOrElse) {
+        indentStack.pop();
+        jsLines.push("}");
+      }
+      jsLines.push(`else {`);
+      indentStack.push(indent + 4);
+      continue;
+    }
+
+    // 5. for x in iterable:
+    const forInMatch = line.match(/^for\s+([a-zA-Z0-9_,\s]+)\s+in\s+(.*?)\s*:/);
+    if (forInMatch) {
+      const varName = forInMatch[1].trim();
+      const iter = forInMatch[2].trim();
+      jsLines.push(`for (const ${varName} of ${iter}) {`);
+      indentStack.push(indent + 4);
+      continue;
+    }
+
+    // 6. while condition:
+    const whileMatch = line.match(/^while\s+(.*?)\s*:/);
+    if (whileMatch) {
+      const cond = whileMatch[1];
+      jsLines.push(`while (${cond}) {`);
+      indentStack.push(indent + 4);
+      continue;
+    }
+
+    // 7. Variable assignment without let/var
+    const assignMatch = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=(?!=)\s*(.+)$/);
+    if (assignMatch) {
+      const varName = assignMatch[1];
+      const val = assignMatch[2];
+      if (!declaredVars.has(varName)) {
+        declaredVars.add(varName);
+        jsLines.push(`let ${varName} = ${val};`);
+      } else {
+        jsLines.push(`${varName} = ${val};`);
+      }
+      continue;
+    }
+
+    // 8. General statement (e.g. print(...), x += 1, return ...)
+    if (!line.endsWith(";") && !line.endsWith("{") && !line.endsWith("}")) {
+      line += ";";
+    }
+    jsLines.push(line);
+  }
+
+  // Close remaining open indent blocks
+  while (indentStack.length > 1) {
+    indentStack.pop();
+    jsLines.push("}");
+  }
+
+  return `${helperHeader}\n\n${jsLines.join("\n")}`;
 }
 
-export function executePythonInSandbox(code: string): Promise<PythonExecutionResult> {
-  return new Promise((resolve) => {
-    const start = performance.now();
-
-    // Isolated Web Worker Script for Python parsing and execution
-    const workerScript = `
-      (function() {
-        // Lockdown all networking, storage, and worker APIs
-        const dangerousGlobals = [
-          'fetch',
-          'XMLHttpRequest',
-          'WebSocket',
-          'EventSource',
-          'importScripts',
-          'indexedDB',
-          'openDatabase',
-          'BroadcastChannel',
-          'SharedWorker',
-          'Worker'
-        ];
-
-        for (const key of dangerousGlobals) {
-          try {
-            Object.defineProperty(self, key, {
-              value: undefined,
-              writable: false,
-              configurable: false,
-            });
-            Object.defineProperty(globalThis, key, {
-              value: undefined,
-              writable: false,
-              configurable: false,
-            });
-          } catch (e) {}
-        }
-
-        if (self.navigator) {
-          try {
-            Object.defineProperty(self.navigator, 'sendBeacon', {
-              value: undefined,
-              writable: false,
-              configurable: false,
-            });
-          } catch (e) {}
-        }
-
-        function transpilePythonToJs(pyCode) {
-          const lines = pyCode.split('\\n');
-          const jsLines = [];
-          const indentStack = [0];
-
-          for (let i = 0; i < lines.length; i++) {
-            const rawLine = lines[i];
-            if (!rawLine.trim() || rawLine.trim().startsWith('#')) {
-              continue;
-            }
-
-            const currentIndent = rawLine.search(/\\S/);
-            while (indentStack.length > 1 && currentIndent < indentStack[indentStack.length - 1]) {
-              indentStack.pop();
-              jsLines.push('}');
-            }
-
-            let line = rawLine.trim();
-
-            // Transform print
-            line = line.replace(/print\\s*\\((.*?)\\)/g, function(_, args) {
-              return '__print(' + (args || '') + ')';
-            });
-
-            // Booleans & Null
-            line = line.replace(/\\bTrue\\b/g, 'true')
-                       .replace(/\\bFalse\\b/g, 'false')
-                       .replace(/\\bNone\\b/g, 'null');
-
-            // Transformations
-            if (/^def\\s+([a-zA-Z0-9_]+)\\s*\\((.*?)\\):$/.test(line)) {
-              line = line.replace(/^def\\s+([a-zA-Z0-9_]+)\\s*\\((.*?)\\):$/, 'function $1($2) {');
-              indentStack.push(currentIndent + 1);
-            } else if (/^if\\s+(.*?):$/.test(line)) {
-              line = line.replace(/^if\\s+(.*?):$/, 'if ($1) {');
-              indentStack.push(currentIndent + 1);
-            } else if (/^elif\\s+(.*?):$/.test(line)) {
-              line = line.replace(/^elif\\s+(.*?):$/, '} else if ($1) {');
-            } else if (/^else\\s*:$/.test(line)) {
-              line = '} else {';
-            } else if (/^for\\s+([a-zA-Z0-9_]+)\\s+in\\s+range\\((.*?)\\):$/.test(line)) {
-              const m = line.match(/^for\\s+([a-zA-Z0-9_]+)\\s+in\\s+range\\((.*?)\\):$/);
-              const v = m[1];
-              const r = m[2].split(',').map(s => s.trim());
-              if (r.length === 1) {
-                line = 'for (let ' + v + ' = 0; ' + v + ' < ' + r[0] + '; ' + v + '++) {';
-              } else if (r.length === 2) {
-                line = 'for (let ' + v + ' = ' + r[0] + '; ' + v + ' < ' + r[1] + '; ' + v + '++) {';
-              } else {
-                line = 'for (let ' + v + ' = ' + r[0] + '; ' + v + ' < ' + r[1] + '; ' + v + ' += ' + r[2] + ') {';
-              }
-              indentStack.push(currentIndent + 1);
-            } else if (/^while\\s+(.*?):$/.test(line)) {
-              line = line.replace(/^while\\s+(.*?):$/, 'while ($1) {');
-              indentStack.push(currentIndent + 1);
-            }
-
-            // len(x) -> (x && x.length !== undefined ? x.length : Object.keys(x).length)
-            line = line.replace(/len\\((.*?)\\)/g, '($1 ? ($1.length !== undefined ? $1.length : Object.keys($1).length) : 0)');
-
-            // str(x) -> String(x), int(x) -> parseInt(x), float(x) -> parseFloat(x)
-            line = line.replace(/\\bstr\\((.*?)\\)/g, 'String($1)')
-                       .replace(/\\bint\\((.*?)\\)/g, 'parseInt($1, 10)')
-                       .replace(/\\bfloat\\((.*?)\\)/g, 'parseFloat($1)');
-
-            jsLines.push(line);
-          }
-
-          while (indentStack.length > 1) {
-            indentStack.pop();
-            jsLines.push('}');
-          }
-
-          return jsLines.join('\\n');
-        }
-
-        self.onmessage = function(e) {
-          const logs = [];
-          const printFn = function(...args) {
-            logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
-          };
-
-          try {
-            const pyCode = e.data;
-            const transpiled = transpilePythonToJs(pyCode);
-
-            const runner = new Function('__print', '"use strict";\\n' + transpiled);
-            runner(printFn);
-
-            self.postMessage({
-              success: true,
-              logs: logs,
-            });
-          } catch (err) {
-            self.postMessage({
-              success: false,
-              logs: logs,
-              error: err && err.message ? err.message : String(err)
-            });
-          }
-        };
-      })();
-    `;
-
-    let blob: Blob;
-    let workerUrl: string;
-    try {
-      blob = new Blob([workerScript], { type: "application/javascript" });
-      workerUrl = URL.createObjectURL(blob);
-    } catch {
-      return resolve({
-        success: false,
-        output: "",
-        error: "ไม่สามารถสร้าง Web Worker สำหรับ Sandbox ได้ เพื่อความปลอดภัยระบบจะไม่รันโค้ดบน Main Thread",
-        executionTimeMs: "0.00",
-      });
-    }
-
-    let worker: Worker | null = null;
-    let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const cleanup = () => {
-      if (timeoutTimer) clearTimeout(timeoutTimer);
-      if (worker) {
-        worker.terminate();
-        worker = null;
-      }
-      try {
-        URL.revokeObjectURL(workerUrl);
-      } catch {}
-    };
-
-    try {
-      worker = new Worker(workerUrl);
-
-      timeoutTimer = setTimeout(() => {
-        cleanup();
-        const elapsed = (performance.now() - start).toFixed(2);
-        resolve({
-          success: false,
-          output: "",
-          error: "Python Execution Timeout: การประมวลผลนานเกิน 3 วินาที",
-          executionTimeMs: elapsed,
-        });
-      }, 3000);
-
-      worker.onmessage = (event) => {
-        cleanup();
-        const elapsed = (performance.now() - start).toFixed(2);
-        const { success, logs, error } = event.data;
-        const finalOutput = logs && logs.length > 0 ? logs.join("\n") : "Python code executed successfully (no output).";
-
-        resolve({
-          success,
-          output: finalOutput,
-          error,
-          executionTimeMs: elapsed,
-        });
-      };
-
-      worker.onerror = (errEvent) => {
-        cleanup();
-        const elapsed = (performance.now() - start).toFixed(2);
-        resolve({
-          success: false,
-          output: "",
-          error: errEvent.message || "เกิดข้อผิดพลาดในการประมวลผล Python Sandbox",
-          executionTimeMs: elapsed,
-        });
-      };
-
-      worker.postMessage(code);
-    } catch (e: any) {
-      cleanup();
-      resolve({
-        success: false,
-        output: "",
-        error: `ไม่สามารถเริ่มต้น Python Web Worker: ${e?.message || String(e)}`,
-        executionTimeMs: (performance.now() - start).toFixed(2),
-      });
-    }
-  });
+export function executePythonInSandbox(pythonCode: string): Promise<ExecutionResult> {
+  try {
+    const jsCode = transpilePythonToJs(pythonCode);
+    return executeJsInBrowserSandbox(jsCode);
+  } catch (err: any) {
+    return Promise.resolve({
+      success: false,
+      output: "",
+      error: `Python syntax translation error: ${err.message || String(err)}`,
+      executionTimeMs: "0.00",
+    });
+  }
 }

@@ -69,11 +69,13 @@ export function executeJsInBrowserSandbox(code: string): Promise<ExecutionResult
           };
 
           try {
-            // Strip simple TypeScript type annotations if present
+            // Strip TypeScript annotations and keywords safely
             let cleanCode = e.data
-              .replace(/:\\s*(string|number|boolean|any|void|unknown|never)\\b/g, "")
-              .replace(/interface\\s+\\w+\\s*\\{[^}]*\\}/g, "")
-              .replace(/type\\s+\\w+\\s*=[^;]+;/g, "");
+              .replace(/interface\s+[A-Za-z0-9_]+\s*(\<[^\>]*\>)?\s*\{[\s\S]*?\}/g, "")
+              .replace(/type\s+[A-Za-z0-9_]+\s*(\<[^\>]*\>)?\s*=[\s\S]*?;/g, "")
+              .replace(/\bas\s+[A-Za-z0-9_<>[\]|&, ]+/g, "")
+              .replace(/:\s*([A-Za-z0-9_<>\[\]|&\s,]+)(?=[=,);{])/g, "")
+              .replace(/\b(public|private|protected|readonly)\s+/g, "");
 
             const runner = new Function(
               'console',

@@ -8,6 +8,7 @@ export function computeLineDiff(oldCode: string, newCode: string): DiffLine[] {
 
   let oldIdx = 0;
   let newIdx = 0;
+  const MAX_LOOKAHEAD = 60;
 
   while (oldIdx < oldLines.length || newIdx < newLines.length) {
     if (oldIdx < oldLines.length && newIdx < newLines.length && oldLines[oldIdx] === newLines[newIdx]) {
@@ -20,15 +21,28 @@ export function computeLineDiff(oldCode: string, newCode: string): DiffLine[] {
       oldIdx++;
       newIdx++;
     } else {
-      // Look ahead for matching line
+      // Look ahead for matching line within bounded window for high performance
       let matchInNew = -1;
       let matchInOld = -1;
 
       if (oldIdx < oldLines.length) {
-        matchInNew = newLines.indexOf(oldLines[oldIdx], newIdx);
+        const limit = Math.min(newLines.length, newIdx + MAX_LOOKAHEAD);
+        for (let j = newIdx; j < limit; j++) {
+          if (newLines[j] === oldLines[oldIdx]) {
+            matchInNew = j;
+            break;
+          }
+        }
       }
+
       if (newIdx < newLines.length) {
-        matchInOld = oldLines.indexOf(newLines[newIdx], oldIdx);
+        const limit = Math.min(oldLines.length, oldIdx + MAX_LOOKAHEAD);
+        for (let j = oldIdx; j < limit; j++) {
+          if (oldLines[j] === newLines[newIdx]) {
+            matchInOld = j;
+            break;
+          }
+        }
       }
 
       if (matchInNew !== -1 && (matchInOld === -1 || matchInNew - newIdx <= matchInOld - oldIdx)) {

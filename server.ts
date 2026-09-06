@@ -28,33 +28,13 @@ app.use(
   })
 );
 
-// Restricted CORS configuration with strict regex validation
-const ALLOWED_ORIGIN_PATTERNS = [
-  /^https?:\/\/localhost(:\d+)?$/,
-  /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
-  /^https:\/\/[a-zA-Z0-9-]+\.run\.app$/,
-  /^https:\/\/[a-zA-Z0-9-]+\.asia-east1\.run\.app$/,
-  /^https:\/\/(?:[a-zA-Z0-9-]+\.)?google\.internal$/,
-  /^https:\/\/(?:[a-zA-Z0-9-]+\.)?ai\.studio$/,
-  /^https:\/\/(?:[a-zA-Z0-9-]+\.)?aistudio\.google\.com$/,
-];
-
+// CORS configuration supporting preview environments, Cloud Run regions, and local development
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (same-origin, curl, server-to-server)
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      const isAllowed = ALLOWED_ORIGIN_PATTERNS.some((pattern) => pattern.test(origin));
-      if (isAllowed) {
-        return callback(null, true);
-      }
-
-      return callback(new Error("CORS policy violation: Origin not allowed"), false);
-    },
+    origin: true,
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   })
 );
 
@@ -142,20 +122,11 @@ function getXkiroClient(): OpenAI | null {
   });
 }
 
-// Health check endpoint
+// Health check endpoint (Safe generic status, no key reconnaissance)
 app.get("/api/health", generalApiLimiter, (req, res) => {
-  const hasGemini = !!(process.env.GEMINI_API_KEY || process.env.API_KEY);
-  const hasXkiro = !!(process.env.XKIRO_API_KEY || process.env.TOKENROUTER_API_KEY);
-
   res.json({
     status: "ok",
-    model: "ZEROWORK Z-One Omni Autonomous Intelligence",
-    version: "Z-One v1.0 Ultra",
-    engines: {
-      googleGenAI: hasGemini ? "Active (Gemini 3.6 Flash & 3.1 Pro Cognitive Core)" : "Fallback Mode",
-      xKiroGateway: hasXkiro ? "Active" : "Standard Cluster",
-    },
-    hasGeminiKey: hasGemini,
+    service: "ZEROWORK Z-One",
     timestamp: new Date().toISOString(),
   });
 });
@@ -261,9 +232,7 @@ app.post("/api/chat", chatRateLimiter, async (req, res) => {
       ? systemInstruction.slice(0, 2000)
       : null;
 
-  const baseInstruction =
-    safeCustomPrompt ||
-    `คุณคือ "ZEROWORK Z-One" (Z one) — ซูเปอร์ AI Omni Autonomous Super-Intelligence รุ่นอัปเกรดสูงสุด ออกแบบมาเพื่อความเป็นเลิศในการเขียนโปรแกรม, สถาปัตยกรรมระบบ, การวิเคราะห์ตรรกะเชิงลึก, และการทำงานอัตโนมัติแบบไร้รอยต่อ
+  const CORE_INSTRUCTION = `คุณคือ "ZEROWORK Z-One" (Z one) — ซูเปอร์ AI Omni Autonomous Super-Intelligence รุ่นอัปเกรดสูงสุด ออกแบบมาเพื่อความเป็นเลิศในการเขียนโปรแกรม, สถาปัตยกรรมระบบ, การวิเคราะห์ตรรกะเชิงลึก, และการทำงานอัตโนมัติแบบไร้รอยต่อ
 
 คุณสมบัติและพฤติกรรมหลักของ Z-One:
 1. Direct Action & Zero Placeholders: เขียนคำตอบและโค้ดตัวเต็มระดับ Production พร้อมใช้งาน 100% ตอบให้ตรงประเด็นและครบถ้วนทันที
@@ -273,6 +242,10 @@ app.post("/api/chat", chatRateLimiter, async (req, res) => {
 5. Universal Full-Stack Master: เชี่ยวชาญ TypeScript, React, Node.js, Python, Rust, Go, SQL, Docker, Kubernetes, CI/CD, และ Cloud Infrastructure
 
 ตอบด้วยภาษาไทยที่สุภาพ เป็นมืออาชีพ ชัดเจน ตรงประเด็น และเฉียบคมทางเทคนิคเสมอ`;
+
+  const baseInstruction = safeCustomPrompt
+    ? `${CORE_INSTRUCTION}\n\n[ข้อกำหนดและบริบทเฉพาะที่ผู้ใช้ตั้งค่าไว้]:\n${safeCustomPrompt}`
+    : CORE_INSTRUCTION;
 
   const isGeminiRequested =
     requestedModel === "Z one" ||

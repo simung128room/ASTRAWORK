@@ -29,7 +29,7 @@ interface ChatMessageProps {
   onSendToChat?: (prompt: string) => void;
   onSendToScratchpad?: (code: string, lang: string) => void;
   onRegenerate?: (messageId: string) => void;
-  onEditAndResend?: (content: string) => void;
+  onEditAndResend?: (content: string, messageId?: string) => void;
 }
 
 // Dynamic Thinking Counter Component
@@ -216,7 +216,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
   const handleSaveEdit = () => {
     if (editContent.trim() && onEditAndResend) {
-      onEditAndResend(editContent.trim());
+      onEditAndResend(editContent.trim(), message.id);
       setIsEditing(false);
     }
   };
